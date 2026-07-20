@@ -1,0 +1,14 @@
+{
+  "signal_type": "new_leader_join",
+  "keyword": "\"new Chief Operating Officer\"",
+  "date_posted": "past-month",
+  "limit": 10,
+  "exact_keyword_match": false,
+  "max_accepted": 1,
+  "require_person": false,
+  "required_text_any": ["chief operating officer"],
+  "exclude_text_any": ["job opening", "we're hiring", "apply now"],
+  "allowed_company_sizes": ["2-10", "11-50"],
+  "default_confidence": "medium",
+  "limitations": "The company announcement identifies the event; location and ICP must still be checked."
+}

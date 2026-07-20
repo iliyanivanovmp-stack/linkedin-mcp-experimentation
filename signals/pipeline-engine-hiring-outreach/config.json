@@ -1,0 +1,67 @@
+{
+  "spreadsheet_id": "1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI",
+  "companies_worksheet": "Leads",
+  "contacts_worksheet": "Contacts",
+  "daily_company_limit": 10,
+  "qualified_statuses": ["outreach_ready"],
+  "daily_contact_limit": 30,
+  "timezone": "Europe/Sofia",
+  "max_contacts_per_company": 3,
+  "contact_providers": {
+    "primary": "lemlist",
+    "fallback": "apollo",
+    "fallback_when_below_contacts": 3,
+    "lemlist_api_key_env": "LEMLIST_API_KEY",
+    "apollo_api_key_env": "APOLLO_API_KEY"
+  },
+  "decision_maker_titles": [
+    "founder",
+    "co-founder",
+    "owner",
+    "ceo",
+    "chief executive officer",
+    "coo",
+    "chief operating officer",
+    "cro",
+    "chief revenue officer",
+    "cmo",
+    "chief marketing officer",
+    "cto",
+    "chief technology officer",
+    "cfo",
+    "chief financial officer",
+    "cso",
+    "chief strategy officer",
+    "president",
+    "managing director",
+    "vp",
+    "vice president",
+    "director"
+  ],
+  "decision_maker_titles_by_role_family": {
+    "direct_outbound": [
+      "founder", "co-founder", "ceo", "chief revenue officer", "cro",
+      "vp sales", "vice president sales", "head of sales", "sales director",
+      "head of revenue", "sales development director", "head of sales development"
+    ],
+    "pipeline_operations": [
+      "founder", "co-founder", "ceo", "chief revenue officer", "cro", "coo",
+      "vp revenue operations", "head of revenue operations", "revenue operations director",
+      "vp sales operations", "head of sales operations", "sales operations director"
+    ],
+    "growth_demand": [
+      "founder", "co-founder", "ceo", "chief marketing officer", "cmo",
+      "vp marketing", "head of marketing", "marketing director", "vp growth",
+      "head of growth", "growth director", "vp demand generation",
+      "head of demand generation", "demand generation director"
+    ]
+  },
+  "contact_retry": {
+    "max_attempts": 3,
+    "retry_after_hours": 24,
+    "retry_empty_after_hours": 72
+  },
+  "lemlist_campaign": "Pipeline Engine hiring outreach",
+  "linkedin_only_campaign": "Pipeline Engine hiring outreach - LinkedIn only",
+  "linkedin_only_placeholder_domain": "pipeline-engine-hiring-linkedin-only.invalid"
+}

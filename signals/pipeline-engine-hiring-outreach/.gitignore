@@ -1,0 +1,8 @@
+.env
+credentials.json
+exports/*.csv
+state/*.json
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store

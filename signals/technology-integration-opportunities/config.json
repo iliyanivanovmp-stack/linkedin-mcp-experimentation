@@ -1,0 +1,14 @@
+{
+  "domains": ["deliverables.ai"],
+  "timeout_seconds": 20,
+  "technologies": {
+    "HubSpot": ["hubspot", "hs-scripts", "hubapi"],
+    "Calendly": ["calendly"],
+    "Apollo": ["apollo.io", "aplo-evnt"],
+    "Google Analytics": ["google-analytics.com", "googletagmanager.com"],
+    "LinkedIn Insight": ["snap.licdn.com", "px.ads.linkedin.com"],
+    "Amplitude": ["amplitude.com"],
+    "Next.js": ["/_next/", "x-powered-by"],
+    "Netlify": ["netlify", "x-nf-request-id"]
+  }
+}

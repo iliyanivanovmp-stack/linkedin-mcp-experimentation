@@ -1,0 +1,48 @@
+{
+  "lemlist_account": "Iliyan Ivanov's Team",
+  "lemlist_api_key_env": "LEMLIST_API_KEY",
+  "default_timezone": "Europe/Sofia",
+  "query_params": {
+    "deduplicate": true,
+    "linkedinEnrichment": false,
+    "findEmail": false,
+    "verifyEmail": false
+  },
+  "campaigns": {
+    "pipeline_gap": {
+      "name": "Pipeline gap detected",
+      "campaign_id": "cam_8LG46LcGQq84uymSH"
+    },
+    "pipeline_gap_linkedin_only": {
+      "name": "Pipeline gap detected - LinkedIn only",
+      "campaign_id": "cam_visJbtfNqYwGtRtwx"
+    },
+    "linkedin_job_signals": {
+      "name": "LinkedIn job signals",
+      "campaign_id": ""
+    }
+  },
+  "sources": [
+    {
+      "key": "pipeline_gap",
+      "campaign_key": "pipeline_gap",
+      "type": "google_sheet",
+      "spreadsheet_id": "1UD1tPrjXy8Hr3l5tAcLALHqa30IJ-AZeO0f4_DbGYAM",
+      "worksheet": "Contacts"
+    },
+    {
+      "key": "pipeline_gap_linkedin_only",
+      "campaign_key": "pipeline_gap_linkedin_only",
+      "type": "google_sheet",
+      "spreadsheet_id": "1UD1tPrjXy8Hr3l5tAcLALHqa30IJ-AZeO0f4_DbGYAM",
+      "worksheet": "Contacts"
+    },
+    {
+      "key": "linkedin_job_signals",
+      "campaign_key": "linkedin_job_signals",
+      "type": "google_sheet",
+      "spreadsheet_id": "1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI",
+      "worksheet": "Leads"
+    }
+  ]
+}

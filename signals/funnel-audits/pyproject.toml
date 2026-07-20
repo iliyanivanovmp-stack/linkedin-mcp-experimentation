@@ -1,0 +1,22 @@
+[project]
+name = "funnel-audit-system"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "beautifulsoup4>=4.13",
+  "composio>=0.9",
+  "google-api-python-client>=2.170",
+  "google-auth>=2.40",
+  "gspread>=6.2",
+  "modal>=1.0",
+  "openai>=1.90",
+  "playwright>=1.52",
+  "pydantic>=2.11",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests", "."]

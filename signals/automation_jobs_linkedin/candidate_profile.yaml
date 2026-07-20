@@ -1,0 +1,260 @@
+# Candidate relevance profile for LinkedIn job filtering.
+# Sources reviewed: Second Brain Context and Iliyan profile, plus the Custom
+# Resume Generator master profile. Feedback-derived exclusions belong in
+# config.json and should be added only after explicit job-by-job feedback.
+
+schema_version: 1
+updated: "2026-07-19"
+
+candidate:
+  name: "Iliyan Ivanov"
+  location: "Tenerife, Spain"
+  working_model:
+    - "remote"
+    - "async-first"
+    - "location-independent"
+  current_roles:
+    - company: "AIessentials"
+      title: "Founder and Technical Operator"
+      since: "2025-09"
+    - company: "Adstart Media"
+      title: "Affiliate Manager"
+      since: "2024-09"
+  experience_years: "2+"
+  positioning: >-
+    Founder and hands-on AI automation specialist with a sales and marketing
+    operations background. Designs and deploys practical AI workflows,
+    integrations, agentic systems, lead-generation infrastructure, and
+    internal business automations that produce measurable revenue or time
+    savings.
+
+job_preferences:
+  engagement_priority:
+    - "contract"
+    - "part-time"
+    - "full-time"
+    - "temporary"
+    - "freelance or project-based"
+  work_type_priority:
+    - "remote"
+  work_type_requirement: >-
+    Fully remote only. Reject hybrid, on-site, in-office, recurring office-day,
+    and occasional mandatory physical-presence requirements.
+  strongest_role_families:
+    - "AI automation specialist"
+    - "workflow automation engineer"
+    - "AI solutions engineer"
+    - "AI implementation specialist"
+    - "agentic workflow builder"
+    - "marketing automation specialist"
+    - "marketing operations specialist"
+    - "sales automation specialist"
+    - "revenue operations automation"
+    - "CRM integration specialist"
+    - "AI operations specialist"
+    - "AI trainer or evaluator focused on practical business workflows"
+  adjacent_role_families:
+    - "growth operations"
+    - "demand generation operations"
+    - "sales operations"
+    - "technical business development"
+    - "AI enablement"
+    - "AI solutions consulting"
+    - "business process automation"
+  ideal_work:
+    - "Build or improve end-to-end n8n workflows"
+    - "Connect LLMs, APIs, CRMs, communication tools, and databases"
+    - "Automate sales, marketing, reporting, onboarding, and operations"
+    - "Build AI agents with monitoring, evaluation, and human approval"
+    - "Create lead sourcing, enrichment, personalization, and outreach systems"
+    - "Implement RAG, vector search, and internal knowledge systems"
+    - "Ship prototypes and production automations with measurable outcomes"
+
+fit_boundaries:
+  positive_signals:
+    - "The role is hands-on and implementation-oriented"
+    - "The work connects AI to a real business process"
+    - "Success is measured through revenue, pipeline, speed, accuracy, or hours saved"
+    - "The stack includes n8n, APIs, LLMs, CRM systems, scraping, or automation platforms"
+    - "The role values a builder who can own discovery through deployment"
+    - "Sales, marketing, RevOps, content, or internal operations are the automation domain"
+  weak_fit_signals:
+    - "Primarily generic marketing with little automation ownership"
+    - "Primarily manual sales or appointment-setting execution"
+    - "Pure content production without systems or automation work"
+    - "Program management with no hands-on building"
+    - "Enterprise people-management roles requiring large-team leadership"
+    - "Academic AI research disconnected from business implementation"
+  likely_mismatch_signals:
+    - "Robotics, embedded systems, hardware, or industrial controls"
+    - "Core ML research, model architecture research, or advanced data science"
+    - "Roles centered on training models from scratch"
+    - "Deep backend, infrastructure, DevOps, or cybersecurity roles without workflow automation"
+    - "Mandatory in-office or location-bound work"
+  note: >-
+    These are scoring boundaries, not permanent keyword bans. Convert a signal
+    into a hard exclusion only after Iliyan confirms it through job feedback.
+
+core_capabilities:
+  ai_and_agents:
+    - "LLM application development"
+    - "agentic workflows"
+    - "prompt engineering"
+    - "human-in-the-loop systems"
+    - "AI output evaluation and quality assurance"
+    - "agent monitoring, error analysis, and self-healing logic"
+    - "RAG, embeddings, and vector stores"
+  automation_and_integration:
+    - "n8n workflow design and deployment"
+    - "API and OAuth integrations"
+    - "CRM integrations"
+    - "event-driven notifications and webhooks"
+    - "document and proposal generation"
+    - "cloud deployment and webhook execution"
+  go_to_market_systems:
+    - "lead sourcing, scraping, and enrichment"
+    - "cold email and personalized outreach automation"
+    - "sales pipeline and appointment-booking automation"
+    - "marketing operations and campaign workflows"
+    - "SEO and content automation"
+    - "social publishing and content operations"
+  business_and_delivery:
+    - "workflow discovery and process mapping"
+    - "solution design from business bottleneck to deployed system"
+    - "client-facing implementation"
+    - "revenue and operational impact measurement"
+    - "solo ownership and async execution"
+
+tools:
+  primary:
+    - "n8n"
+    - "OpenAI"
+    - "Anthropic"
+    - "Gemini"
+    - "Modal"
+    - "Supabase"
+    - "Airtable"
+    - "Google Cloud Platform"
+    - "Google Workspace"
+  sales_and_marketing:
+    - "HubSpot"
+    - "ClickUp"
+    - "Lemlist"
+    - "Instantly"
+    - "Apollo"
+    - "Clay"
+    - "Sales Navigator"
+    - "Apify"
+    - "Google Search Console"
+  channels_and_apis:
+    - "Slack"
+    - "Telegram"
+    - "LinkedIn API"
+    - "YouTube API"
+    - "Google Maps API"
+    - "TikTok API"
+    - "Meta API"
+  additional:
+    - "Make"
+    - "Netlify"
+    - "Pinecone"
+    - "MCP"
+
+evidence:
+  - outcome: "$24,000 revenue generated within 2 months"
+    work: "AI-powered marketing workflows using OpenAI and n8n"
+  - outcome: "16+ operational hours saved per month"
+    work: "CRM, Google Docs, and Slack automation pipelines"
+  - outcome: "99% lead accuracy"
+    work: "AI-driven sourcing and personalized outreach"
+  - outcome: "1.5M+ impressions and 35% more inbound appointments"
+    work: "Anthropic-powered SEO content system with human approval"
+  - outcome: "250% more LinkedIn impressions and 40% more LinkedIn leads"
+    work: "AI LinkedIn writing and publishing workflow"
+  - outcome: "70% reduction in AI-agent failures"
+    work: "Self-healing workflow with logging, review, and error analysis"
+  - outcome: "5-10 additional qualified sales calls per month"
+    work: "Automated personalized cold-email and follow-up system"
+  - outcome: "98% less proposal drafting time"
+    work: "Post-call automated proposal generation"
+  - outcome: "120% increase in agency lead flow and 14 hours saved weekly"
+    work: "Automated Google Maps prospecting system"
+  - outcome: "50% lower AI token usage"
+    work: "RAG and vector-store architecture across 30+ documents"
+  - outcome: "AI-agent reliability improved from 65% to 95%"
+    work: "Evaluation of output inconsistencies and data-input refinement"
+  - outcome: "11x monthly revenue growth within 8 months"
+    work: "Partner acquisition strategy across three channels"
+  - outcome: "250% lead-generation growth within 6 months"
+    work: "Custom automated outreach systems"
+  - outcome: "40-60% reduction in manual processing time"
+    work: "Business workflow automation"
+
+background:
+  experience:
+    - company: "AIessentials"
+      role: "Founder"
+      focus: "AI automation, agents, GTM systems, integrations, and client delivery"
+    - company: "Adstart Media"
+      role: "Affiliate Manager"
+      focus: "Partner acquisition, revenue growth, lead generation, and process automation"
+    - company: "RockWool Group"
+      role: "Marketing Executive"
+      focus: "B2B partnerships, SEO, campaigns, and appointment growth"
+  education:
+    institution: "Private College St. Ariadna, Sofia"
+    focus: "Entrepreneurship and Management"
+    dates: "2021-09 to 2024-06"
+  certification:
+    - "Digital Marketing Pro, AMA and Digital Marketing Institute, 2024"
+  languages:
+    - "English, fluent"
+
+business_context:
+  company: "AIessentials"
+  model: "Solo AI automation consulting business"
+  services:
+    - "Custom AI Operating Systems for business workflows"
+    - "Managed or build-and-handoff outbound Pipeline Engines"
+    - "Workflow and revenue-leak diagnostics"
+  ideal_clients:
+    - "B2B agencies and service businesses"
+    - "Non-technical founders and operations teams"
+    - "Organizations with stable, repeatable workflows to automate"
+  delivery_style:
+    - "Custom rather than template-based"
+    - "Fast implementation"
+    - "Ongoing optimization after delivery"
+    - "Open and portable tooling without unnecessary vendor lock-in"
+
+job_relevance_feedback:
+  confirmed_strong_titles:
+    - "AI Transformation Engineer"
+    - "AI Solutions / Automation"
+    - "Marketing Automation Manager"
+    - "Marketing Automation Specialist"
+    - "Journey Builder"
+    - "AI Systems User"
+  confirmed_excluded_role_families:
+    - "data science"
+    - "data engineering"
+    - "business and data analysis"
+    - "machine learning engineering and development"
+    - "robotics"
+    - "traditional software engineering"
+    - "digital product content management"
+  ai_trainer_policy:
+    decision: "conditional"
+    require_domain_alignment: true
+    aligned_domains:
+      - "marketing and email"
+      - "sales, CRM, RevOps, and lead generation"
+      - "workflow and business process automation"
+      - "API integrations and n8n"
+      - "content automation, SEO, and social media"
+    excluded_domains:
+      - "machine learning and data science"
+      - "robotics and industrial engineering"
+      - "banking, regulatory, legal, medical, and unrelated specialist fields"
+      - "language-specialist work unrelated to English business workflows"
+      - "traditional software engineering and coding-test work"

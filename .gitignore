@@ -1,0 +1,7 @@
+credentials.json
+**/.env
+**/*service-account*.json
+**/linkedin-session/
+**/.linkedin-mcp/
+__pycache__/
+*.pyc

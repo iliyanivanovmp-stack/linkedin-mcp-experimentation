@@ -1,0 +1,10 @@
+{
+  "competitor_profiles": [
+    "https://www.linkedin.com/in/benvansprundel/"
+  ],
+  "lookback_days": 30,
+  "max_posts_per_profile": 20,
+  "max_comments_per_post": 25,
+  "max_load_more_clicks": 2,
+  "delay_between_posts_seconds": 1.5
+}

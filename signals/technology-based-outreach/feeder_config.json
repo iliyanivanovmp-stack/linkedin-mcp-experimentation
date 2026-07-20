@@ -1,0 +1,59 @@
+{
+  "default_timezone": "Europe/Sofia",
+  "campaigns": {
+    "technology": {
+      "name": "Technology-based outreach",
+      "campaign_id": "cam_rQA2i9v5GjYdGHJtR"
+    },
+    "technology_linkedin_only": {
+      "name": "Technology-based outreach - LinkedIn only",
+      "campaign_id": "cam_rKrkfj9P3hihTw9oF"
+    }
+  },
+  "sources": [
+    {
+      "key": "technology",
+      "campaign_key": "technology",
+      "type": "google_sheet",
+      "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
+      "worksheet": "Contacts",
+      "timezone": "Europe/Sofia",
+      "daily_limit": 30,
+      "daily_limit_group": "technology_outreach",
+      "custom_variables": {
+        "technologies": ["technologies", "selected_outreach_tools"],
+        "opener": ["opener", "email_opener"],
+        "automationOpportunity1": ["automation_opportunity_1", "automation_example_1"],
+        "automationOpportunity2": ["automation_opportunity_2", "automation_example_2"],
+        "automationOpportunity3": ["automation_opportunity_3", "automation_example_3"],
+        "outreachAngle": ["outreach_angle", "solution_angle"],
+        "sourceUrl": ["source_url", "company_website"],
+        "companyWebsite": ["company_website", "website"],
+        "companyDomain": ["company_domain", "domain"],
+        "jobTitle": ["job_title", "title"]
+      }
+    },
+    {
+      "key": "technology_linkedin_only",
+      "campaign_key": "technology_linkedin_only",
+      "type": "google_sheet",
+      "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
+      "worksheet": "Contacts",
+      "timezone": "Europe/Sofia",
+      "daily_limit": 30,
+      "daily_limit_group": "technology_outreach",
+      "custom_variables": {
+        "technologies": ["technologies", "selected_outreach_tools"],
+        "opener": ["opener", "email_opener"],
+        "automationOpportunity1": ["automation_opportunity_1", "automation_example_1"],
+        "automationOpportunity2": ["automation_opportunity_2", "automation_example_2"],
+        "automationOpportunity3": ["automation_opportunity_3", "automation_example_3"],
+        "outreachAngle": ["outreach_angle", "solution_angle"],
+        "sourceUrl": ["source_url", "company_website"],
+        "companyWebsite": ["company_website", "website"],
+        "companyDomain": ["company_domain", "domain"],
+        "jobTitle": ["job_title", "title"]
+      }
+    }
+  ]
+}

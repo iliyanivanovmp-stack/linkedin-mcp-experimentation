@@ -1,0 +1,63 @@
+{
+  "signal_type": "tool_switching",
+  "enabled": false,
+  "status": "pending_future_review",
+  "search_phrases": [
+    "leaving",
+    "switching from",
+    "moving away from",
+    "switching to",
+    "moving to",
+    "adopting"
+  ],
+  "tools": [
+    "HubSpot",
+    "ClickUp",
+    "Instantly",
+    "Lemlist",
+    "Zapier"
+  ],
+  "primary_search_term": "switching",
+  "group_boolean_terms": false,
+  "search_filters": {
+    "content_type": "posts"
+  },
+  "date_posted": "past-month",
+  "sort_by": "top-match",
+  "limit": 50,
+  "exact_keyword_match": false,
+  "max_accepted": 50,
+  "required_text_any": [
+    "switch",
+    "leaving",
+    "left",
+    "moving",
+    "moved",
+    "adopting",
+    "adopted"
+  ],
+  "required_tool_any": [
+    "HubSpot",
+    "ClickUp",
+    "Instantly",
+    "Lemlist",
+    "Zapier"
+  ],
+  "excluded_location_terms": [
+    "india"
+  ],
+  "allowed_title_terms": [
+    "founder",
+    "co-founder",
+    "owner",
+    "ceo",
+    "cto",
+    "coo",
+    "managing director",
+    "head of operations",
+    "operations lead",
+    "operations"
+  ],
+  "default_confidence": "high",
+  "limitations": "The Boolean search finds switching language in one LinkedIn search. A matching post proves active change but not demand for outside implementation."
+}

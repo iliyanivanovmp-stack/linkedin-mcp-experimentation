@@ -1,0 +1,31 @@
+{
+  "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
+  "companies_worksheet": "Companies",
+  "contacts_worksheet": "Contacts",
+  "qualified_statuses": ["outreach_ready"],
+  "qualified_confidences": ["high", "medium"],
+  "daily_contact_limit": 30,
+  "timezone": "Europe/Sofia",
+  "max_contacts_per_company": 3,
+  "contact_providers": {
+    "primary": "lemlist",
+    "fallback": "apollo",
+    "fallback_when_below_contacts": 1,
+    "lemlist_api_key_env": "LEMLIST_API_KEY",
+    "apollo_api_key_env": "APOLLO_API_KEY"
+  },
+  "decision_maker_titles": [
+    "founder",
+    "co-founder",
+    "ceo",
+    "owner",
+    "managing director",
+    "head of operations",
+    "operations lead",
+    "head of revenue operations",
+    "revenue operations lead"
+  ],
+  "lemlist_campaign": "Technology-based outreach",
+  "linkedin_only_campaign": "Technology-based outreach - LinkedIn only",
+  "linkedin_only_placeholder_domain": "technology-outreach-linkedin-only.invalid"
+}

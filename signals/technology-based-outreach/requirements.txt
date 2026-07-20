@@ -1,0 +1,5 @@
+fastapi>=0.115
+google-auth>=2.40
+gspread>=6.2
+modal>=1.0
+pytest>=8.4

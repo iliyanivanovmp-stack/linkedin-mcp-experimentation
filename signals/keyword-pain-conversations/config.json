@@ -1,0 +1,18 @@
+{
+  "signal_type": "keyword_pain_conversation",
+  "keyword": "\"drowning in admin\"",
+  "date_posted": "past-quarter",
+  "limit": 10,
+  "exact_keyword_match": true,
+  "max_accepted": 1,
+  "first_person_required": true,
+  "first_person_phrases": ["i'm drowning", "i am drowning", "we're drowning", "we are drowning", "my admin", "our admin"],
+  "required_text_any": ["drowning in admin"],
+  "exclude_text_any": ["we help", "our clients", "comment \"", "book a call", "read the full", "latest article", "we frequently talk to founders"],
+  "allowed_location_terms": ["united states", "canada", "usa", "u.s."],
+  "allowed_title_terms": ["founder", "owner", "ceo", "managing director", "operations"],
+  "excluded_title_terms": ["automation consultant", "process automation", "virtual assistant"],
+  "allowed_company_sizes": ["2-10", "11-50"],
+  "default_confidence": "high",
+  "limitations": "A public post can describe pain without proving budget or purchase intent."
+}

@@ -1,0 +1,15 @@
+{
+  "signal_type": "promotion_or_job_change",
+  "keyword": "\"promoted to\" AND operations",
+  "date_posted": "past-month",
+  "limit": 10,
+  "exact_keyword_match": false,
+  "max_accepted": 1,
+  "required_text_any": ["promoted to", "operations"],
+  "exclude_text_any": ["career advice", "years ago", "job opening", "apply now"],
+  "allowed_location_terms": ["united states", "canada", "usa", "u.s."],
+  "allowed_title_terms": ["operations", "revenue", "sales", "marketing"],
+  "allowed_company_sizes": ["2-10", "11-50"],
+  "default_confidence": "medium",
+  "limitations": "Promotion posts are noisy and require company-size and ICP qualification."
+}

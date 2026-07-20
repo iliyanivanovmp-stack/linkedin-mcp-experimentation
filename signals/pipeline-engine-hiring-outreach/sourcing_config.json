@@ -1,0 +1,82 @@
+{
+  "search_queries": [
+    "\"sales development representative\" OR \"business development representative\" OR \"appointment setter\" OR \"lead generation specialist\" OR \"outbound sales representative\" OR \"sales operations\" OR \"revenue operations\" OR \"marketing operations\" OR \"demand generation\" OR \"growth manager\""
+  ],
+  "location": "United States",
+  "date_posted": "past_week",
+  "sort_by": "date",
+  "max_pages": 3,
+  "max_job_details_per_query": 60,
+  "max_opportunities_per_run": 10,
+  "role_families": {
+    "direct_outbound": {
+      "score": 100,
+      "title_terms": [
+        "sales development representative",
+        "business development representative",
+        "appointment setter",
+        "lead generation specialist",
+        "outbound sales representative",
+        "sdr",
+        "bdr"
+      ],
+      "offer_angle": "Build the targeting, lead sourcing, sequences, follow-ups, CRM updates, attribution, and reporting around the outbound role."
+    },
+    "pipeline_operations": {
+      "score": 80,
+      "title_terms": [
+        "sales operations",
+        "revenue operations",
+        "marketing operations",
+        "crm administrator",
+        "crm manager"
+      ],
+      "offer_angle": "Automate pipeline operations, CRM hygiene, lead routing, attribution, reporting, and follow-up workflows."
+    },
+    "growth_demand": {
+      "score": 65,
+      "require_evidence": true,
+      "title_terms": [
+        "demand generation",
+        "growth manager",
+        "growth marketing",
+        "business development manager",
+        "inside sales"
+      ],
+      "offer_angle": "Build a predictable outbound acquisition system with measurable lead sourcing, follow-up, attribution, and reporting."
+    }
+  },
+  "exclude_title_terms": [
+    "intern",
+    "internship",
+    "volunteer",
+    "commission only"
+  ],
+  "exclude_company_terms": [
+    "staffing",
+    "recruiting",
+    "recruitment",
+    "talent solutions",
+    "employment agency"
+  ],
+  "exclude_description_terms": [
+    "commission only",
+    "unpaid position",
+    "volunteer position"
+  ],
+  "evidence_terms": [
+    "cold calling",
+    "cold email",
+    "outbound",
+    "prospecting",
+    "lead generation",
+    "book meetings",
+    "appointment setting",
+    "sales pipeline",
+    "crm",
+    "hubspot",
+    "salesforce",
+    "qualified leads",
+    "sales development"
+  ]
+}

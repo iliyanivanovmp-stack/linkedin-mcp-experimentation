@@ -1,0 +1,80 @@
+{
+  "lemlist_account": "Iliyan Ivanov's Team",
+  "lemlist_api_key_env": "LEMLIST_API_KEY",
+  "default_timezone": "Europe/Sofia",
+  "max_attempts_per_run": 90,
+  "delivery_retry": {
+    "max_attempts": 4,
+    "retry_after_minutes": 60
+  },
+  "query_params": {
+    "deduplicate": true,
+    "linkedinEnrichment": false,
+    "findEmail": false,
+    "verifyEmail": false
+  },
+  "campaigns": {
+    "hiring": {
+      "name": "Pipeline Engine hiring outreach",
+      "campaign_id": "cam_7pAgGFbaBpYGw3XQo"
+    },
+    "hiring_linkedin_only": {
+      "name": "Pipeline Engine hiring outreach - LinkedIn only",
+      "campaign_id": "cam_5o7M8GxYwgoMeygfG"
+    }
+  },
+  "sources": [
+    {
+      "key": "hiring",
+      "campaign_key": "hiring",
+      "type": "google_sheet",
+      "spreadsheet_id": "1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI",
+      "worksheet": "Contacts",
+      "timezone": "Europe/Sofia",
+      "daily_limit": 30,
+      "daily_limit_group": "pipeline_engine_hiring_outreach",
+      "custom_variables": {
+        "hiringJobTitle": ["hiring_job_title"],
+        "hiringJobUrl": ["hiring_job_url", "source_url"],
+        "hiringRoleFamily": ["hiring_role_family"],
+        "hiringIntentScore": ["hiring_intent_score"],
+        "hiringEvidenceTerms": ["hiring_evidence_terms"],
+        "hiringOfferAngle": ["hiring_offer_angle"],
+        "hiringOutreachReason": ["hiring_outreach_reason", "outreach_reason"],
+        "hiringOpener": ["hiring_opener", "opener"],
+        "hiringAutomationOpportunity": ["hiring_automation_opportunity"],
+        "compensationText": ["compensation_text"],
+        "sourceUrl": ["source_url", "hiring_job_url"],
+        "companyWebsite": ["company_website"],
+        "companyDomain": ["company_domain"],
+        "jobTitle": ["job_title"]
+      }
+    },
+    {
+      "key": "hiring_linkedin_only",
+      "campaign_key": "hiring_linkedin_only",
+      "type": "google_sheet",
+      "spreadsheet_id": "1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI",
+      "worksheet": "Contacts",
+      "timezone": "Europe/Sofia",
+      "daily_limit": 30,
+      "daily_limit_group": "pipeline_engine_hiring_outreach",
+      "custom_variables": {
+        "hiringJobTitle": ["hiring_job_title"],
+        "hiringJobUrl": ["hiring_job_url", "source_url"],
+        "hiringRoleFamily": ["hiring_role_family"],
+        "hiringIntentScore": ["hiring_intent_score"],
+        "hiringEvidenceTerms": ["hiring_evidence_terms"],
+        "hiringOfferAngle": ["hiring_offer_angle"],
+        "hiringOutreachReason": ["hiring_outreach_reason", "outreach_reason"],
+        "hiringOpener": ["hiring_opener", "opener"],
+        "hiringAutomationOpportunity": ["hiring_automation_opportunity"],
+        "compensationText": ["compensation_text"],
+        "sourceUrl": ["source_url", "hiring_job_url"],
+        "companyWebsite": ["company_website"],
+        "companyDomain": ["company_domain"],
+        "jobTitle": ["job_title"]
+      }
+    }
+  ]
+}

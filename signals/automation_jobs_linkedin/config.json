@@ -1,0 +1,137 @@
+{
+  "search_queries": [
+    "\"AI automation specialist\" OR \"workflow automation specialist\" OR \"AI transformation engineer\" OR \"AI solutions automation\" OR \"AI implementation specialist\" OR \"n8n developer\" OR \"AI agent builder\"",
+    "\"marketing automation manager\" OR \"marketing automation specialist\" OR \"CRM automation\" OR \"CRM integration specialist\" OR \"lifecycle automation\" OR \"journey builder\" OR \"sales automation specialist\" OR \"RevOps automation\" OR \"GTM automation\" OR \"marketing operations specialist\"",
+    "(\"AI trainer\" OR \"AI evaluator\" OR \"AI systems user\") AND (marketing OR email OR sales OR CRM OR workflow OR automation OR API OR LLM)"
+  ],
+  "work_type": "remote",
+  "remote_policy": {
+    "required": true,
+    "hard_exclude_rules": [
+      {"pattern": "\\bhybrid(?:\\s*/\\s*remote|[- ](?:work|role|position|schedule|arrangement|model))\\b", "label": "hybrid work"},
+      {"pattern": "\\bon[- ]?site(?:[- ](?:work|role|position|requirement|presence))?\\b", "label": "on-site work"},
+      {"pattern": "\\b(?:in[- ]office|office[- ]based)[- ](?:work|role|position|requirement|presence|schedule|days?|expectation)\\b", "label": "in-office work"},
+      {"pattern": "\\b(?:work|working|report|reporting|come|coming) (?:from|in|at|to) (?:an? |the )?office\\b", "label": "office attendance"},
+      {"pattern": "\\b\\d+\\s+days?\\s+(?:per|a|each)\\s+week\\s+(?:in|at)\\s+(?:an? |the )?office\\b", "label": "recurring office days"},
+      {"pattern": "\\b(?:must|required to|expected to|need to)\\b.{0,80}\\b(?:attend|visit|work|report|come)\\b.{0,40}\\b(?:office|on[- ]?site|in person)\\b", "label": "mandatory physical presence"},
+      {"pattern": "\\b(?:occasional|regular|weekly|monthly|quarterly)\\b.{0,60}\\b(?:office|on[- ]?site|in-person)\\b", "label": "periodic physical presence"}
+    ]
+  },
+  "job_type": "contract,part_time,full_time,temporary,other",
+  "date_posted": "past_week",
+  "sort_by": "date",
+  "max_pages": 1,
+  "max_jobs_per_run": 10,
+  "inter_search_delay_min_seconds": 180,
+  "inter_search_delay_max_seconds": 300,
+  "candidate_fetch_multiplier": 5,
+  "relevance": {
+    "source_profile": "candidate_profile.yaml",
+    "minimum_score": 8,
+    "profile_coverage_examples": [
+      {"title": "AI Transformation Engineer", "description": "Remote contract workflow automation"},
+      {"title": "AI Solutions Consultant", "description": "Project-based API and LLM implementation"},
+      {"title": "Marketing Automation Specialist", "description": "Remote CRM automation contract"},
+      {"title": "Marketing Operations Specialist", "description": "Part-time lifecycle and workflow automation"},
+      {"title": "CRM Integration Specialist", "description": "Contract API integration and business automation"},
+      {"title": "AI Operations Specialist", "description": "Remote AI agent operations and workflow implementation"},
+      {"title": "AI Enablement Consultant", "description": "Project-based business AI implementation"},
+      {"title": "AI Trainer - Marketing Automation", "description": "Evaluate LLM workflows for CRM and email marketing"}
+    ],
+    "require_positive_title": true,
+    "hard_exclude_title_patterns": [
+      "\\bdata scientist\\b",
+      "\\bdata engineer\\b",
+      "\\banalyst\\b",
+      "\\bai\\s*/\\s*ml\\b",
+      "\\bmachine learning\\b",
+      "\\bml engineer\\b",
+      "\\bsoftware engineer\\b",
+      "\\brobot(?:ics|ic)?\\b",
+      "\\bproduct content manager\\b",
+      "\\bdigital content manager\\b"
+    ],
+    "hard_exclude_job_patterns": [
+      "\\brobot(?:ics|ic)?\\b"
+    ],
+    "positive_title_rules": [
+      {"pattern": "\\bai transformation\\b", "weight": 10, "label": "AI transformation"},
+      {"pattern": "\\bai solutions?(?:\\s*/\\s*|\\s+)(?:automation|engineer|specialist|consultant)\\b", "weight": 9, "label": "AI solutions"},
+      {"pattern": "\\b(?:ai|workflow|process|business|intelligent) automation (?:engineer|specialist|developer|consultant|manager|builder)\\b", "weight": 10, "label": "automation role"},
+      {"pattern": "\\bautomation specialist\\b", "weight": 9, "label": "automation specialist"},
+      {"pattern": "\\b(?:marketing|crm|lifecycle|sales|email|revenue|revops|gtm) automation\\b", "weight": 10, "label": "GTM automation"},
+      {"pattern": "\\bjourney builder\\b", "weight": 10, "label": "journey automation"},
+      {"pattern": "\\bn8n (?:developer|engineer|specialist|consultant|builder)\\b", "weight": 10, "label": "n8n"},
+      {"pattern": "\\bai (?:agent|systems?) (?:builder|developer|specialist|operator|user)\\b", "weight": 9, "label": "applied AI systems"},
+      {"pattern": "\\bai implementation\\b", "weight": 9, "label": "AI implementation"},
+      {"pattern": "\\b(?:marketing|growth|demand generation|sales|revenue|revops|gtm) operations (?:specialist|manager|consultant|engineer|lead)\\b", "weight": 8, "label": "GTM operations"},
+      {"pattern": "\\bcrm (?:integration|implementation) (?:specialist|consultant|engineer|developer)\\b", "weight": 9, "label": "CRM integration"},
+      {"pattern": "\\bai (?:operations|enablement) (?:specialist|consultant|engineer|manager|lead)\\b", "weight": 8, "label": "AI operations or enablement"},
+      {"pattern": "\\bai solutions consultant\\b", "weight": 9, "label": "AI solutions consulting"},
+      {"pattern": "\\bai (?:trainer|evaluator)\\b", "weight": 8, "label": "AI training or evaluation"}
+    ],
+    "positive_job_rules": [
+      {"pattern": "\\bn8n\\b", "weight": 3, "label": "n8n"},
+      {"pattern": "\\b(?:api|apis|oauth) integration", "weight": 2, "label": "API integrations"},
+      {"pattern": "\\b(?:crm|marketing|sales|email|lifecycle|revops|gtm) automation\\b", "weight": 3, "label": "business automation domain"},
+      {"pattern": "\\b(?:workflow|process) automation\\b", "weight": 2, "label": "workflow automation"},
+      {"pattern": "\\b(?:llm|large language model|rag|ai agent|agentic workflow)s?\\b", "weight": 2, "label": "applied LLM systems"},
+      {"pattern": "\\b(?:contract|freelance|part[- ]time|project[- ]based)\\b", "weight": 1, "label": "preferred engagement"},
+      {"pattern": "\\bremote\\b", "weight": 1, "label": "remote"}
+    ],
+    "negative_job_rules": [
+      {"pattern": "\\b(?:8|9|1[0-9])\\+? years?(?: of)? experience\\b", "weight": -4, "label": "high experience requirement"},
+      {"pattern": "\\b(?:must|only) (?:be )?(?:located|based|reside|authorized) in (?:the )?(?:united states|u\\.?s\\.?|usa|canada)\\b", "weight": -5, "label": "restricted remote geography"},
+      {"pattern": "\\b(?:people manager|manage a team|direct reports|team of \\d+)\\b", "weight": -3, "label": "people-management emphasis"},
+      {"pattern": "\\b(?:unpaid|equity only|commission only)\\b", "weight": -8, "label": "unpaid or contingent compensation"}
+    ],
+    "trainer": {
+      "title_pattern": "\\bai (?:trainer|evaluator)\\b",
+      "allowed_domain_patterns": [
+        "\\bmarketing automation\\b",
+        "\\bemail (?:marketing|automation|outreach)\\b",
+        "\\b(?:sales|crm|revenue|revops|gtm) (?:operations|automation)\\b",
+        "\\bworkflow automation\\b",
+        "\\bbusiness process automation\\b",
+        "\\bapi integrations?\\b",
+        "\\bn8n\\b",
+        "\\bcontent automation\\b",
+        "\\b(?:digital|growth|email|content) marketing\\b",
+        "\\bsocial media\\b",
+        "\\blead generation\\b",
+        "\\bseo\\b"
+      ],
+      "excluded_domain_patterns": [
+        "\\bindustrial engineer",
+        "\\bregulatory compliance\\b",
+        "\\bbanking\\b",
+        "\\blanguage specialist\\b",
+        "\\b(?:arabic|armenian|spanish|french|german) fluency\\b",
+        "\\bhealthcare\\b",
+        "\\brobot(?:ics|ic)?\\b",
+        "\\bdata scien",
+        "\\bmachine learning\\b",
+        "\\bsoftware engineer",
+        "\\btest automation engineer",
+        "\\bcoding (?:task|challenge|problem)s?\\b",
+        "\\b(?:legal|medical|accounting) expert"
+      ]
+    }
+  },
+  "exclude_title_terms": [
+    "intern",
+    "internship",
+    "volunteer",
+    "software engineer",
+    "machine learning engineer",
+    "ml engineer",
+    "data scientist",
+    "data engineer",
+    "business analyst",
+    "product content manager",
+    "ai/ml"
+  ],
+  "exclude_job_terms": [
+    "robotics"
+  ]
+}

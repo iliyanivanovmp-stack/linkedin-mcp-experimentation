@@ -1,0 +1,6 @@
+{
+  "domains": ["deliverables.ai"],
+  "max_linked_pages": 15,
+  "timeout_seconds": 20,
+  "funnel_terms": ["contact", "demo", "book", "apply", "pricing", "signup", "sign-up"]
+}
