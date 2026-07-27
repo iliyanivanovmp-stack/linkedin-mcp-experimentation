@@ -11,6 +11,7 @@ from modal_app import _is_authorized
 from track_jobs import (
     description_from_guest_html,
     evaluate_job,
+    filter_new_sheet_rows,
     load_seen,
     poster_url_from_guest_html,
     save_seen,
@@ -220,6 +221,25 @@ def test_corrupt_state_fails_loudly(tmp_path):
         load_seen(state)
 
 
+def test_sheet_dedup_uses_job_id_job_url_and_current_batch():
+    header = ["company_name", "job_url", "job_id"]
+    existing = [
+        header,
+        ["Existing", "https://linkedin.com/jobs/view/1/", "1"],
+    ]
+    rows = [
+        {"company_name": "Same ID", "job_url": "https://other.test/1", "job_id": "1"},
+        {"company_name": "Same URL", "job_url": "https://linkedin.com/jobs/view/1/", "job_id": "2"},
+        {"company_name": "New", "job_url": "https://linkedin.com/jobs/view/3/", "job_id": "3"},
+        {"company_name": "Batch duplicate", "job_url": "https://duplicate.test/3", "job_id": "3"},
+    ]
+
+    new_rows, duplicates_skipped = filter_new_sheet_rows(rows, header, existing)
+
+    assert new_rows == [rows[2]]
+    assert duplicates_skipped == 3
+
+
 def test_http_bearer_authentication_is_fail_closed():
     assert _is_authorized("Bearer correct", "correct")
     assert _is_authorized("bearer correct", "correct")
@@ -292,7 +312,11 @@ def _run_main(monkeypatch, tmp_path, *, reset=False, credentials=True, sheet_err
     def fake_append(rows, path):
         if sheet_error:
             raise sheet_error
-        return "https://example.test/sheet"
+        return {
+            "sheet_url": "https://example.test/sheet",
+            "rows_written": len(rows),
+            "duplicates_skipped": 0,
+        }
 
     def fake_slack(*args):
         if slack_error:

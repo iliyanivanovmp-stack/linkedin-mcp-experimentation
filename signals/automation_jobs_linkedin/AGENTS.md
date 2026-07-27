@@ -66,7 +66,7 @@ modal run signals/automation_jobs_linkedin/modal_app.py --reset-state
 | `search_queries` | array of three queries | AI automation, GTM automation, and domain-gated AI trainer lanes |
 | `work_type` | `remote` | LinkedIn remote-only filter |
 | `remote_policy` | required | Hard-rejects hybrid, on-site, in-office, and mandatory physical-presence language |
-| `job_type` | `contract,part_time,full_time,temporary,other` | Allows any requested engagement type; remote policy remains mandatory |
+| `job_type` | `contract,part_time,temporary,other` | Limits results to non-permanent engagement types; remote policy remains mandatory |
 | `date_posted` | `past_week` | Overlapping recovery window; dedup prevents repeat delivery after missed runs |
 | `sort_by` | `date` | `date` or `relevance` |
 | `max_pages` | `1` | Pages of search results to fetch (25 jobs/page) |
@@ -110,10 +110,12 @@ and `relevance_signals`. Feedback columns are appended for `review_status`,
 Older sheets may still have `short_description` as the column E header. The
 writer upgrades that legacy header to `job_description` before appending rows.
 
-The sheet is append-only. Rows are batch-appended, and IDs are persisted only
-after the Sheet confirms delivery. A run without credentials is a preview and
-does not mutate state. Never delete rows manually — the state file is the
-primary source of truth and `job_id` is the secondary idempotency key.
+The sheet is append-only. Before each batch append, the writer checks existing
+`job_id` and `job_url` values, so retrying after an interrupted state update does
+not duplicate rows. IDs are persisted only after the Sheet confirms delivery. A
+run without credentials is a preview and does not mutate state. Never delete
+rows manually — the state file is the primary source of truth and Sheet IDs/URLs
+provide the secondary idempotency layer.
 
 Use the read-only feedback report after rating jobs and recording outcomes:
 ```bash

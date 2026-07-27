@@ -17,7 +17,7 @@
       {"pattern": "\\b(?:occasional|regular|weekly|monthly|quarterly)\\b.{0,60}\\b(?:office|on[- ]?site|in-person)\\b", "label": "periodic physical presence"}
     ]
   },
-  "job_type": "contract,part_time,full_time,temporary,other",
+  "job_type": "contract,part_time,temporary,other",
   "date_posted": "past_week",
   "sort_by": "date",
   "max_pages": 1,

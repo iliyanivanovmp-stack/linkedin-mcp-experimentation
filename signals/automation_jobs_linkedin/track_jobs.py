@@ -507,7 +507,45 @@ def save_seen(path: Path, seen: set[str]) -> None:
 
 # ── Google Sheets ─────────────────────────────────────────────────────────────
 
-def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> str:
+def filter_new_sheet_rows(
+    rows: list[dict[str, Any]],
+    header: list[str],
+    sheet_values: list[list[str]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Remove rows already delivered to the Sheet or repeated in this batch."""
+    job_id_index = header.index("job_id") if "job_id" in header else None
+    job_url_index = header.index("job_url") if "job_url" in header else None
+    existing_ids: set[str] = set()
+    existing_urls: set[str] = set()
+
+    for values in sheet_values[1:]:
+        if job_id_index is not None and job_id_index < len(values):
+            job_id = values[job_id_index].strip()
+            if job_id:
+                existing_ids.add(job_id)
+        if job_url_index is not None and job_url_index < len(values):
+            job_url = values[job_url_index].strip()
+            if job_url:
+                existing_urls.add(job_url)
+
+    new_rows: list[dict[str, Any]] = []
+    duplicates_skipped = 0
+    for row in rows:
+        job_id = str(row.get("job_id", "")).strip()
+        job_url = str(row.get("job_url", "")).strip()
+        if (job_id and job_id in existing_ids) or (job_url and job_url in existing_urls):
+            duplicates_skipped += 1
+            continue
+        if job_id:
+            existing_ids.add(job_id)
+        if job_url:
+            existing_urls.add(job_url)
+        new_rows.append(row)
+
+    return new_rows, duplicates_skipped
+
+
+def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> dict[str, Any]:
     import gspread
     from google.oauth2.service_account import Credentials
 
@@ -557,9 +595,10 @@ def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> str:
         ws.update(f"{_column_letter(start)}1:{_column_letter(end)}1", [missing_fields])
         header.extend(missing_fields)
 
-    if rows:
+    new_rows, duplicates_skipped = filter_new_sheet_rows(rows, header, sheet_values)
+    if new_rows:
         ws.append_rows(
-            [[str(row.get(field, "")) for field in header] for row in rows],
+            [[str(row.get(field, "")) for field in header] for row in new_rows],
             value_input_option="RAW",
         )
 
@@ -568,7 +607,11 @@ def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> str:
     except Exception as exc:
         print(f"[sheet_format_warning] {exc}", file=sys.stderr)
 
-    return f"https://docs.google.com/spreadsheets/d/{sh.id}"
+    return {
+        "sheet_url": f"https://docs.google.com/spreadsheets/d/{sh.id}",
+        "rows_written": len(new_rows),
+        "duplicates_skipped": duplicates_skipped,
+    }
 
 
 def _column_letter(index: int) -> str:
@@ -1126,10 +1169,15 @@ def main() -> None:
             break
 
     sheet_url = ""
+    sheet_rows_written = 0
+    sheet_duplicates_skipped = 0
     delivery_status = "no_new_rows"
     delivered_ids: set[str] = set()
     if rows and args.credentials.exists():
-        sheet_url = append_to_sheet(rows, args.credentials)
+        sheet_delivery = append_to_sheet(rows, args.credentials)
+        sheet_url = str(sheet_delivery["sheet_url"])
+        sheet_rows_written = int(sheet_delivery["rows_written"])
+        sheet_duplicates_skipped = int(sheet_delivery["duplicates_skipped"])
         delivered_ids = {str(row["job_id"]) for row in rows}
         save_seen(args.state, historical_seen | delivered_ids)
         delivery_status = "delivered"
@@ -1156,6 +1204,8 @@ def main() -> None:
         "jobs_inspected": result["jobs_inspected"],
         "new_jobs": len(rows),
         "duplicates_skipped": duplicates_skipped,
+        "sheet_rows_written": sheet_rows_written,
+        "sheet_duplicates_skipped": sheet_duplicates_skipped,
         "health": result.get("health", {}),
         "relevance": {
             "source_profile": source_profile,
