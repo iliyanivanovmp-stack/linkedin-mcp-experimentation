@@ -545,6 +545,24 @@ def filter_new_sheet_rows(
     return new_rows, duplicates_skipped
 
 
+def write_rows_to_canonical_columns(
+    ws: Any,
+    rows: list[dict[str, Any]],
+    header: list[str],
+    start_row: int,
+) -> None:
+    """Write rows into the header's A-based columns without table auto-detection."""
+    if not rows:
+        return
+    end_row = start_row + len(rows) - 1
+    end_column = _column_letter(len(header))
+    ws.update(
+        values=[[str(row.get(field, "")) for field in header] for row in rows],
+        range_name=f"A{start_row}:{end_column}{end_row}",
+        value_input_option="RAW",
+    )
+
+
 def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> dict[str, Any]:
     import gspread
     from google.oauth2.service_account import Credentials
@@ -597,9 +615,11 @@ def append_to_sheet(rows: list[dict[str, Any]], creds_path: Path) -> dict[str, A
 
     new_rows, duplicates_skipped = filter_new_sheet_rows(rows, header, sheet_values)
     if new_rows:
-        ws.append_rows(
-            [[str(row.get(field, "")) for field in header] for row in new_rows],
-            value_input_option="RAW",
+        write_rows_to_canonical_columns(
+            ws,
+            new_rows,
+            header,
+            start_row=len(sheet_values) + 1,
         )
 
     try:

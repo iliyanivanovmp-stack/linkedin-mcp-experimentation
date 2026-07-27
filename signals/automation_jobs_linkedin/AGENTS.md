@@ -114,12 +114,15 @@ and `relevance_signals`. Feedback columns are appended for `review_status`,
 Older sheets may still have `short_description` as the column E header. The
 writer upgrades that legacy header to `job_description` before appending rows.
 
-The sheet is append-only. Before each batch append, the writer checks existing
+The sheet is append-only. Before each batch write, the writer checks existing
 `job_id` and `job_url` values, so retrying after an interrupted state update does
-not duplicate rows. IDs are persisted only after the Sheet confirms delivery. A
-run without credentials is a preview and does not mutate state. Never delete
-rows manually — the state file is the primary source of truth and Sheet IDs/URLs
-provide the secondary idempotency layer.
+not duplicate rows. New rows are written to an explicit `A:<last header column>`
+range; never use implicit Sheets append-table detection because manual notes or
+downstream resume columns can cause Google to start a second table to the right.
+IDs are persisted only after the Sheet confirms delivery. A run without
+credentials is a preview and does not mutate state. Never delete rows manually
+— the state file is the primary source of truth and Sheet IDs/URLs provide the
+secondary idempotency layer.
 
 Use the read-only feedback report after rating jobs and recording outcomes:
 ```bash

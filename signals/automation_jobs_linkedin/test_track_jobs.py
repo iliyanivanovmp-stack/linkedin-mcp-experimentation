@@ -16,6 +16,7 @@ from track_jobs import (
     poster_url_from_guest_html,
     save_seen,
     validate_config,
+    write_rows_to_canonical_columns,
 )
 
 
@@ -279,6 +280,33 @@ def test_sheet_dedup_uses_job_id_job_url_and_current_batch():
 
     assert new_rows == [rows[2]]
     assert duplicates_skipped == 3
+
+
+def test_sheet_rows_are_written_to_explicit_a_based_range():
+    class Worksheet:
+        def __init__(self):
+            self.calls = []
+
+        def update(self, **kwargs):
+            self.calls.append(kwargs)
+
+    ws = Worksheet()
+    header = ["detected_at", "company_name", "job_url"]
+    rows = [
+        {"detected_at": "now", "company_name": "Acme", "job_url": "job-1"},
+        {"detected_at": "later", "company_name": "Beta", "job_url": "job-2"},
+    ]
+
+    write_rows_to_canonical_columns(ws, rows, header, start_row=31)
+
+    assert ws.calls == [{
+        "values": [
+            ["now", "Acme", "job-1"],
+            ["later", "Beta", "job-2"],
+        ],
+        "range_name": "A31:C32",
+        "value_input_option": "RAW",
+    }]
 
 
 def test_http_bearer_authentication_is_fail_closed():
