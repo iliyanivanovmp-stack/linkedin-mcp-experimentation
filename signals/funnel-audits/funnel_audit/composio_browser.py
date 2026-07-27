@@ -155,6 +155,7 @@ Rules:
 At the end, report:
 BOOKING_CONFIRMED: yes or no
 CONFIRMATION_URL: the final unique invitee/confirmation URL, or blank
+CANCELLATION_URL: the event-specific cancellation or reschedule URL, or blank
 SCHEDULED_TIME_ISO: the scheduled instant as ISO 8601 with UTC offset, or blank
 FINAL_MESSAGE: the exact confirmation or error message
 """
@@ -165,6 +166,9 @@ FINAL_MESSAGE: the exact confirmation or error message
         and re.search(r"you are scheduled|confirmed", output, re.I)
     )
     url_match = re.search(r"CONFIRMATION_URL:\s*(https?://\S+)", output, re.I)
+    cancellation_match = re.search(
+        r"CANCELLATION_URL:\s*(https?://\S+)", output, re.I
+    )
     time_match = re.search(r"SCHEDULED_TIME_ISO:\s*(.+)", output, re.I)
     return {
         "submitted": confirmed,
@@ -172,6 +176,11 @@ FINAL_MESSAGE: the exact confirmation or error message
         "provider": "composio_browser",
         "confirmation_url": (
             url_match.group(1).rstrip(".,)") if url_match else result.get("current_url", "")
+        ),
+        "cancellation_url": (
+            cancellation_match.group(1).rstrip(".,)")
+            if cancellation_match
+            else ""
         ),
         "scheduled_time": time_match.group(1).strip() if time_match else "",
         "confirmation_text": output,

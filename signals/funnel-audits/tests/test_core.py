@@ -11,10 +11,12 @@ from funnel_audit.google import column_letters, merged_sheet_headers
 from funnel_audit.orchestrator import (
     _message_attribution,
     audit_alias,
+    cancel_due_bookings,
     finalize_due,
     monitor_inbox,
     normalized_domain,
     rank_candidates,
+    resolve_booking_attention,
     stable_audit_id,
 )
 
@@ -196,6 +198,33 @@ def test_finalization_ignores_inbox_next_check_timestamp(tmp_path, monkeypatch):
     assert finalize_due(database) == [{"audit_id": "a", "status": "no_gap_detected"}]
 
 
+def test_finalization_waits_until_booking_attention_is_cleared(
+    tmp_path, monkeypatch
+):
+    database = Database(str(tmp_path / "audit.db"))
+    database.upsert_audit({
+        "audit_id": "a", "sheet_row": 2, "company_name": "Alpha",
+        "website_url": "https://alpha.com", "normalized_domain": "alpha.com",
+        "status": "monitoring", "created_at": "2026-01-01T00:00:00+00:00",
+    })
+    database.update_audit(
+        "a",
+        monitor_until="2026-01-02T00:00:00+00:00",
+        cancellation_url="https://calendar.test/cancel/a",
+        cancellation_due_at="2999-01-01T00:00:00+00:00",
+    )
+    monkeypatch.setattr(
+        "funnel_audit.orchestrator.assess_gap",
+        lambda _events: GapAssessment(result="no_gap_detected"),
+    )
+    monkeypatch.setattr(
+        "funnel_audit.orchestrator.update_sheet_row", lambda *args: None
+    )
+
+    assert finalize_due(database) == []
+    assert database.get_audit("a")["status"] == "monitoring"
+
+
 def test_empty_inbox_still_advances_monitoring_check(tmp_path, monkeypatch):
     database = Database(str(tmp_path / "audit.db"))
     database.upsert_audit(
@@ -218,6 +247,67 @@ def test_empty_inbox_still_advances_monitoring_check(tmp_path, monkeypatch):
     audit = database.get_audit("example-1")
     assert audit["last_checked_at"]
     assert audit["next_check_at"] > audit["last_checked_at"]
+
+
+def test_failed_booking_cancellation_is_visible_and_retried(tmp_path, monkeypatch):
+    database = Database(str(tmp_path / "audit.db"))
+    database.upsert_audit({
+        "audit_id": "a", "sheet_row": 2, "company_name": "Alpha",
+        "website_url": "https://alpha.com", "normalized_domain": "alpha.com",
+        "status": "monitoring", "created_at": "2026-01-01T00:00:00+00:00",
+    })
+    database.update_audit(
+        "a",
+        cancellation_url="https://calendar.test/cancel/a",
+        cancellation_due_at="2026-01-02T00:00:00+00:00",
+    )
+    sheet_changes = []
+    monkeypatch.setattr(
+        "funnel_audit.orchestrator.composio_configured", lambda: False
+    )
+    monkeypatch.setattr(
+        "funnel_audit.orchestrator.update_sheet_row",
+        lambda *args: sheet_changes.append(args[-1]),
+    )
+
+    result = asyncio.run(cancel_due_bookings(database))
+
+    assert result[0]["cancelled"] is False
+    assert result[0]["next_retry_at"]
+    assert database.get_audit("a")["cancellation_due_at"] == result[0]["next_retry_at"]
+    assert "will retry" in sheet_changes[0]["notes"]
+
+
+def test_operator_can_resolve_historical_booking_attention(tmp_path, monkeypatch):
+    database = Database(str(tmp_path / "audit.db"))
+    database.upsert_audit({
+        "audit_id": "a", "sheet_row": 2, "company_name": "Alpha",
+        "website_url": "https://alpha.com", "normalized_domain": "alpha.com",
+        "status": "manual_review", "created_at": "2026-01-01T00:00:00+00:00",
+    })
+    database.update_audit(
+        "a",
+        cancellation_url="https://calendar.test/cancel/a",
+        cancellation_due_at="2026-01-02T00:00:00+00:00",
+    )
+    sheet_changes = []
+    monkeypatch.setattr(
+        "funnel_audit.orchestrator.update_sheet_row",
+        lambda *args: sheet_changes.append(args[-1]),
+    )
+
+    result = resolve_booking_attention(
+        database,
+        "a",
+        "The scheduled date passed and no future meeting remains.",
+    )
+
+    audit = database.get_audit("a")
+    assert result["resolved"] is True
+    assert audit["cancellation_url"] == ""
+    assert audit["cancellation_due_at"] == ""
+    assert "resolved by operator" in sheet_changes[0]["notes"]
+    assert database.events("a")[-1]["event_type"] == "booking_attention_resolved"
 
 
 def test_openai_strict_schema_requires_every_field():

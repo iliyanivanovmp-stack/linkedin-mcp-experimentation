@@ -78,6 +78,8 @@ company/domain evidence before they are attached to an audit.
 
 - Queue intake, discovery, inbox monitoring, finalization, and cancellation
   checks: every two hours
+- Scheduler failures and booking-cancellation failures are reported through
+  `SLACK_WEBHOOK_URL` from `pipeline-gap-downstream-secrets`.
 
 ## Local checks
 

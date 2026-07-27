@@ -5,6 +5,11 @@ This directory is the complete standalone system. It contains the upstream
 the downstream contact pipeline, and a local Lemlist feeder. Run commands from
 this directory; no parent-repository runtime files are required.
 
+This repository is the canonical deployment source. The compatibility copy at
+`linkedin-mcp-experimentation/signals/funnel-audits` must be synchronized from
+this repository after changes; production must always be deployed from this
+standalone checkout.
+
 Start with `AGENTS.md` for architecture, production resources, safe commands,
 and change guardrails. See `AUDIT_ENGINE_README.md` for the detailed upstream
 audit-engine reference.
@@ -25,15 +30,16 @@ defensible gap is recorded.
 
 ## Source of truth
 
-Audit state is stored in the native Google Sheet:
+Operator state is stored in the native Google Sheet:
 
 https://docs.google.com/spreadsheets/d/1UD1tPrjXy8Hr3l5tAcLALHqa30IJ-AZeO0f4_DbGYAM/edit
 
 The local CSV is no longer used.
 
-The same spreadsheet now has two logical tabs:
+The same spreadsheet has two logical tabs:
 
-- `Leads`: company-level audit inputs, state, and verified opportunities.
+- `Website Pipelines`: company-level audit inputs, state, and verified
+  opportunities.
 - `Contacts`: person-level decision makers extracted from qualified company
   rows. These rows feed the `Pipeline gap detected` Lemlist campaign.
 
@@ -133,17 +139,17 @@ missed.
 Usage:
 
 ```bash
-python3 signals/funnel-audits/prepare_outreach_context.py
-python3 signals/funnel-audits/extract_contacts.py
-python3 signals/funnel-audits/sync_contact_context.py
+python3 prepare_outreach_context.py
+python3 extract_contacts.py
+python3 sync_contact_context.py
 ```
 
 Dry run:
 
 ```bash
-python3 signals/funnel-audits/prepare_outreach_context.py --dry-run
-python3 signals/funnel-audits/extract_contacts.py --dry-run
-python3 signals/funnel-audits/sync_contact_context.py --dry-run
+python3 prepare_outreach_context.py --dry-run
+python3 extract_contacts.py --dry-run
+python3 sync_contact_context.py --dry-run
 ```
 
 `prepare_outreach_context.py` fills missing `opener` and `solution_angle`
@@ -158,7 +164,7 @@ should be refreshed.
 Safe static CSV test mode:
 
 ```bash
-python3 signals/funnel-audits/extract_contacts.py --static-contacts-csv contacts.csv --dry-run
+python3 extract_contacts.py --static-contacts-csv contacts.csv --dry-run
 ```
 
 Google Sheets require either `GOOGLE_APPLICATION_CREDENTIALS` or
@@ -194,15 +200,15 @@ It uses Lemlist's bulk enrichment API with `find_email`.
 Start enrichment jobs:
 
 ```bash
-python3 signals/funnel-audits/enrich_missing_emails.py --mode start --dry-run
-python3 signals/funnel-audits/enrich_missing_emails.py --mode start
+python3 enrich_missing_emails.py --mode start --dry-run
+python3 enrich_missing_emails.py --mode start
 ```
 
 Poll enrichment results:
 
 ```bash
-python3 signals/funnel-audits/enrich_missing_emails.py --mode poll --dry-run
-python3 signals/funnel-audits/enrich_missing_emails.py --mode poll
+python3 enrich_missing_emails.py --mode poll --dry-run
+python3 enrich_missing_emails.py --mode poll
 ```
 
 Rows that find an email are updated with the email and blank `status`, making
@@ -212,8 +218,8 @@ them feeder-ready. Rows where Lemlist cannot find an email become
 Apollo fallback for rows where Lemlist did not find an email:
 
 ```bash
-python3 signals/funnel-audits/enrich_missing_emails.py --mode apollo --dry-run
-python3 signals/funnel-audits/enrich_missing_emails.py --mode apollo
+python3 enrich_missing_emails.py --mode apollo --dry-run
+python3 enrich_missing_emails.py --mode apollo
 ```
 
 Rows where Apollo finds an email are also cleared to blank `status`, making
@@ -222,8 +228,8 @@ them feeder-ready for the normal `Pipeline gap detected` campaign.
 Final LinkedIn-only fallback:
 
 ```bash
-python3 signals/funnel-audits/enrich_missing_emails.py --mode finalize-linkedin-only --dry-run
-python3 signals/funnel-audits/enrich_missing_emails.py --mode finalize-linkedin-only
+python3 enrich_missing_emails.py --mode finalize-linkedin-only --dry-run
+python3 enrich_missing_emails.py --mode finalize-linkedin-only
 ```
 
 This converts unresolved rows that still have a LinkedIn URL into
@@ -240,18 +246,24 @@ after reviewing how many `needs_email` rows were created.
 Run the whole operational chain in one command:
 
 ```bash
-python3 signals/funnel-audits/run_pipeline_gap_system.py --dry-run --skip-apollo
+python3 run_pipeline_gap_system.py --dry-run --skip-apollo
 ```
 
 Live run:
 
 ```bash
-python3 signals/funnel-audits/run_pipeline_gap_system.py
+python3 run_pipeline_gap_system.py
 ```
 
 In production this runner is mounted into the existing Modal
 `funnel-audit-system` app and called from its scheduled dispatcher. That app
 runs every two hours.
+
+Scheduler failures, unassigned inbound messages, failed booking cancellations,
+and downstream attention states are recorded in
+`scheduled-dispatcher-status.json` and sent to the configured Slack webhook.
+Repeated identical alerts are deduplicated; a recovery notification is sent
+after the next healthy run.
 
 The runner executes:
 
@@ -267,7 +279,7 @@ The runner executes:
 Standalone monitoring:
 
 ```bash
-python3 signals/funnel-audits/monitor_pipeline_gap_system.py
+python3 monitor_pipeline_gap_system.py
 ```
 
 The monitor reports counts for contact-generation statuses, contact statuses,

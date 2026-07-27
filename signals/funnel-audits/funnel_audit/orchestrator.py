@@ -215,10 +215,12 @@ async def process_discovery(db: Database) -> list[dict]:
                             ).isoformat(),
                             "next_check_at": now.isoformat(),
                         }
-                        if submission.get("confirmation_url"):
-                            submission_changes["cancellation_url"] = submission[
-                                "confirmation_url"
-                            ]
+                        cancellation_url = (
+                            submission.get("cancellation_url")
+                            or submission.get("confirmation_url")
+                        )
+                        if cancellation_url:
+                            submission_changes["cancellation_url"] = cancellation_url
                         if candidate.entry_type == "booking":
                             scheduled_text = str(submission.get("scheduled_time", "")).strip()
                             try:
@@ -416,18 +418,53 @@ async def cancel_due_bookings(db: Database) -> list[dict]:
             )
         db.add_event(audit["audit_id"], "booking_cancellation", result)
         if result.get("cancelled"):
+            checked_at = utcnow()
+            update_sheet_row(
+                SETTINGS.spreadsheet_id,
+                SETTINGS.sheet_name,
+                audit["sheet_row"],
+                HEADERS,
+                {
+                    "notes": (
+                        "Booking cancellation confirmed automatically; "
+                        "audit monitoring continues."
+                    ),
+                    "last_checked_at": checked_at,
+                },
+            )
             db.update_audit(
                 audit["audit_id"],
                 cancellation_due_at="",
                 cancellation_url="",
+                last_checked_at=checked_at,
             )
         else:
+            next_retry_at = (
+                datetime.now(timezone.utc) + timedelta(hours=2)
+            ).isoformat()
+            reason = str(
+                result.get("reason")
+                or result.get("confirmation_text")
+                or "Cancellation was not confirmed."
+            )[:500]
+            update_sheet_row(
+                SETTINGS.spreadsheet_id,
+                SETTINGS.sheet_name,
+                audit["sheet_row"],
+                HEADERS,
+                {
+                    "notes": (
+                        "Booking cancellation was not confirmed and will retry "
+                        f"after {next_retry_at}. Reason: {reason}"
+                    ),
+                    "last_checked_at": utcnow(),
+                },
+            )
             db.update_audit(
                 audit["audit_id"],
-                cancellation_due_at=(
-                    datetime.now(timezone.utc) + timedelta(hours=2)
-                ).isoformat(),
+                cancellation_due_at=next_retry_at,
             )
+            result["next_retry_at"] = next_retry_at
         cancelled.append({"audit_id": audit["audit_id"], **result})
     return cancelled
 
@@ -446,6 +483,8 @@ def finalize_due(db: Database) -> list[dict]:
               AND monitor_until IS NOT NULL
               AND monitor_until<>''
               AND monitor_until<=?
+              AND cancellation_url=''
+              AND cancellation_due_at=''
             ORDER BY monitor_until
             LIMIT 100
             """,
@@ -507,6 +546,66 @@ def reconcile_terminal_audit_sheet(db: Database, audit_id: str) -> dict:
         gap_types = ", ".join(json.loads(audit.get("gap_types") or "[]"))
     except (TypeError, ValueError, json.JSONDecodeError):
         gap_types = str(audit.get("gap_types") or "")
+    changes = {
+        "status": audit["status"],
+        "opportunity_status": audit.get("opportunity_status") or "no",
+        "gap_types": gap_types,
+        "gap_reason": audit.get("gap_reason") or "",
+        "outreach_reason": audit.get("outreach_reason") or "",
+        "checklist_passed": "",
+        "checklist_failed": "",
+        "checklist_unknown": "",
+        "do_not_sequence": bool(audit.get("do_not_sequence", 1)),
+        "last_checked_at": utcnow(),
+        "next_check_at": "",
+    }
+    failed_cancellations = []
+    for event in db.events(audit_id):
+        if event["event_type"] != "booking_cancellation":
+            continue
+        try:
+            payload = json.loads(event["payload_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if not payload.get("cancelled"):
+            failed_cancellations.append(payload)
+    if failed_cancellations and audit.get("cancellation_url"):
+        reason = str(
+            failed_cancellations[-1].get("reason")
+            or failed_cancellations[-1].get("confirmation_text")
+            or "Cancellation was not confirmed."
+        )[:500]
+        changes["notes"] = (
+            "Manual review required: the most recent automated booking "
+            f"cancellation was not confirmed. Reason: {reason}"
+        )
+    update_sheet_row(
+        SETTINGS.spreadsheet_id,
+        SETTINGS.sheet_name,
+        audit["sheet_row"],
+        HEADERS,
+        changes,
+    )
+    return {"audit_id": audit_id, "status": audit["status"], "reconciled": True}
+
+
+def resolve_booking_attention(
+    db: Database, audit_id: str, resolution_note: str
+) -> dict:
+    audit = db.get_audit(audit_id)
+    if not audit:
+        raise ValueError(f"Unknown audit: {audit_id}")
+    if not resolution_note.strip():
+        raise ValueError("A resolution note is required.")
+    if not audit.get("cancellation_url") and not audit.get("cancellation_due_at"):
+        return {
+            "audit_id": audit_id,
+            "status": audit["status"],
+            "resolved": False,
+            "reason": "No booking attention is currently recorded.",
+        }
+    checked_at = utcnow()
+    note = f"Booking attention resolved by operator: {resolution_note.strip()}"
     update_sheet_row(
         SETTINGS.spreadsheet_id,
         SETTINGS.sheet_name,
@@ -514,18 +613,29 @@ def reconcile_terminal_audit_sheet(db: Database, audit_id: str) -> dict:
         HEADERS,
         {
             "status": audit["status"],
-            "opportunity_status": audit.get("opportunity_status") or "no",
-            "gap_types": gap_types,
-            "gap_reason": audit.get("gap_reason") or "",
-            "outreach_reason": audit.get("outreach_reason") or "",
-            "checklist_passed": "",
-            "checklist_failed": "",
-            "checklist_unknown": "",
-            "do_not_sequence": bool(audit.get("do_not_sequence", 1)),
-            "last_checked_at": utcnow(),
+            "notes": note,
+            "last_checked_at": checked_at,
+            "next_check_at": "",
         },
     )
-    return {"audit_id": audit_id, "status": audit["status"], "reconciled": True}
+    db.add_event(
+        audit_id,
+        "booking_attention_resolved",
+        {"resolution_note": resolution_note.strip()},
+    )
+    db.update_audit(
+        audit_id,
+        cancellation_url="",
+        cancellation_due_at="",
+        last_checked_at=checked_at,
+        next_check_at="",
+    )
+    return {
+        "audit_id": audit_id,
+        "status": audit["status"],
+        "resolved": True,
+        "resolution_note": resolution_note.strip(),
+    }
 
 
 def run_discovery_cycle() -> dict:

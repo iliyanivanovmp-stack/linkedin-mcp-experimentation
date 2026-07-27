@@ -4,6 +4,9 @@ This folder contains the complete standalone Funnel Audit system: the upstream
 browser/audit engine, persistent Modal scheduler, downstream contact pipeline,
 email enrichment, Lemlist feeder, monitoring, tests, and deployment entrypoint.
 It must remain independent from Hiring Outreach and Technology-Based Outreach.
+The standalone `funnel-audit-system` repository is the canonical deployment
+source. Any compatibility copy in another repository must be synchronized from
+this checkout and must never be used to overwrite newer standalone work.
 
 ## Purpose and flow
 
@@ -35,7 +38,7 @@ It must remain independent from Hiring Outreach and Technology-Based Outreach.
   `funnel-audit-config`, `funnel-audit-composio`,
   `pipeline-gap-downstream-secrets`
 
-The audit engine processes at most 10 new audits per cycle and monitors an
+The audit engine processes at most 10 new audits per UTC day and monitors an
 audit for up to 10 days. `LIVE_SUBMISSIONS` is a safety-critical setting.
 
 ## Important files
