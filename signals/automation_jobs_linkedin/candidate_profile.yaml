@@ -4,7 +4,7 @@
 # config.json and should be added only after explicit job-by-job feedback.
 
 schema_version: 1
-updated: "2026-07-19"
+updated: "2026-07-27"
 
 candidate:
   name: "Iliyan Ivanov"
@@ -46,12 +46,16 @@ job_preferences:
     - "AI solutions engineer"
     - "AI implementation specialist"
     - "agentic workflow builder"
+    - "AI agent and automation engineer"
+    - "AI workflow builder"
+    - "AI operations specialist"
+    - "AI enablement consultant"
+  secondary_role_families:
     - "marketing automation specialist"
     - "marketing operations specialist"
     - "sales automation specialist"
     - "revenue operations automation"
     - "CRM integration specialist"
-    - "AI operations specialist"
     - "AI trainer or evaluator focused on practical business workflows"
   adjacent_role_families:
     - "growth operations"
@@ -228,9 +232,19 @@ business_context:
     - "Open and portable tooling without unnecessary vendor lock-in"
 
 job_relevance_feedback:
+  ranking_preference: >-
+    Prefer applied AI, AI automation, AI agents, AI workflows, AI solutions,
+    and implementation roles first. Marketing automation and marketing
+    operations remain useful secondary matches, but should not dominate the
+    daily selection when relevant AI-focused jobs are available.
   confirmed_strong_titles:
     - "AI Transformation Engineer"
     - "AI Solutions / Automation"
+    - "AI Agent & Automation Engineer"
+    - "AI Workflow Builder"
+    - "AI & Automation Engineer"
+    - "AI Solutions & Automation Developer"
+    - "Enterprise Automation & AI Engineer"
     - "Marketing Automation Manager"
     - "Marketing Automation Specialist"
     - "Journey Builder"

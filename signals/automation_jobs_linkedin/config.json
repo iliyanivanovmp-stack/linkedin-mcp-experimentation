@@ -1,8 +1,8 @@
 {
   "search_queries": [
-    "\"AI automation specialist\" OR \"workflow automation specialist\" OR \"AI transformation engineer\" OR \"AI solutions automation\" OR \"AI implementation specialist\" OR \"n8n developer\" OR \"AI agent builder\"",
-    "\"marketing automation manager\" OR \"marketing automation specialist\" OR \"CRM automation\" OR \"CRM integration specialist\" OR \"lifecycle automation\" OR \"journey builder\" OR \"sales automation specialist\" OR \"RevOps automation\" OR \"GTM automation\" OR \"marketing operations specialist\"",
-    "(\"AI trainer\" OR \"AI evaluator\" OR \"AI systems user\") AND (marketing OR email OR sales OR CRM OR workflow OR automation OR API OR LLM)"
+    "\"AI automation engineer\" OR \"AI automation specialist\" OR \"AI & automation\" OR \"automation & AI\" OR \"workflow automation engineer\" OR \"n8n developer\" OR \"AI transformation engineer\"",
+    "\"AI agent engineer\" OR \"AI agent builder\" OR \"AI workflow builder\" OR \"agentic automation\" OR \"AI solutions engineer\" OR \"AI implementation specialist\" OR \"AI integration engineer\" OR \"AI operations specialist\" OR \"AI enablement consultant\"",
+    "\"marketing automation specialist\" OR \"CRM automation\" OR \"CRM integration specialist\" OR \"lifecycle automation\" OR \"journey builder\" OR \"sales automation specialist\" OR \"RevOps automation\" OR \"GTM automation\" OR \"marketing operations specialist\""
   ],
   "work_type": "remote",
   "remote_policy": {
@@ -31,6 +31,9 @@
     "profile_coverage_examples": [
       {"title": "AI Transformation Engineer", "description": "Remote contract workflow automation"},
       {"title": "AI Solutions Consultant", "description": "Project-based API and LLM implementation"},
+      {"title": "AI Agent & Automation Engineer", "description": "Remote contract building AI agents and business workflows"},
+      {"title": "AI Workflow Builder", "description": "Project-based n8n and LLM workflow implementation"},
+      {"title": "Enterprise Automation & AI Engineer", "description": "Remote contract AI automation and API integrations"},
       {"title": "Marketing Automation Specialist", "description": "Remote CRM automation contract"},
       {"title": "Marketing Operations Specialist", "description": "Part-time lifecycle and workflow automation"},
       {"title": "CRM Integration Specialist", "description": "Contract API integration and business automation"},
@@ -55,19 +58,23 @@
       "\\brobot(?:ics|ic)?\\b"
     ],
     "positive_title_rules": [
-      {"pattern": "\\bai transformation\\b", "weight": 10, "label": "AI transformation"},
-      {"pattern": "\\bai solutions?(?:\\s*/\\s*|\\s+)(?:automation|engineer|specialist|consultant)\\b", "weight": 9, "label": "AI solutions"},
-      {"pattern": "\\b(?:ai|workflow|process|business|intelligent) automation (?:engineer|specialist|developer|consultant|manager|builder)\\b", "weight": 10, "label": "automation role"},
-      {"pattern": "\\bautomation specialist\\b", "weight": 9, "label": "automation specialist"},
-      {"pattern": "\\b(?:marketing|crm|lifecycle|sales|email|revenue|revops|gtm) automation\\b", "weight": 10, "label": "GTM automation"},
-      {"pattern": "\\bjourney builder\\b", "weight": 10, "label": "journey automation"},
-      {"pattern": "\\bn8n (?:developer|engineer|specialist|consultant|builder)\\b", "weight": 10, "label": "n8n"},
-      {"pattern": "\\bai (?:agent|systems?) (?:builder|developer|specialist|operator|user)\\b", "weight": 9, "label": "applied AI systems"},
-      {"pattern": "\\bai implementation\\b", "weight": 9, "label": "AI implementation"},
-      {"pattern": "\\b(?:marketing|growth|demand generation|sales|revenue|revops|gtm) operations (?:specialist|manager|consultant|engineer|lead)\\b", "weight": 8, "label": "GTM operations"},
-      {"pattern": "\\bcrm (?:integration|implementation) (?:specialist|consultant|engineer|developer)\\b", "weight": 9, "label": "CRM integration"},
-      {"pattern": "\\bai (?:operations|enablement) (?:specialist|consultant|engineer|manager|lead)\\b", "weight": 8, "label": "AI operations or enablement"},
-      {"pattern": "\\bai solutions consultant\\b", "weight": 9, "label": "AI solutions consulting"},
+      {"pattern": "\\bai transformation\\b", "weight": 15, "label": "AI transformation"},
+      {"pattern": "\\bai solutions?\\s*(?:&|and|/|-)?\\s*(?:automation\\s+)?(?:engineer|specialist|consultant|developer)\\b", "weight": 15, "label": "AI solutions"},
+      {"pattern": "\\bai\\s*(?:&|and|/|-)\\s*automation\\b", "weight": 15, "label": "AI-first automation"},
+      {"pattern": "\\bautomation\\s*(?:&|and|/|-)\\s*ai\\b", "weight": 15, "label": "AI-first automation"},
+      {"pattern": "\\bai (?:agent|workflow)s?\\s*(?:(?:&|and|/|-)\\s*)?automation (?:engineer|specialist|developer|consultant|manager|builder)\\b", "weight": 15, "label": "AI agents and automation"},
+      {"pattern": "\\b(?:ai|workflow|process|business|intelligent) automation (?:engineer|specialist|developer|consultant|manager|builder)\\b", "weight": 14, "label": "automation role"},
+      {"pattern": "\\bai (?:agent|workflow|automation) (?:builder|developer|engineer|specialist|operator|consultant)\\b", "weight": 14, "label": "applied AI builder"},
+      {"pattern": "\\bautomation specialist\\b", "weight": 5, "label": "automation specialist"},
+      {"pattern": "\\b(?:marketing|crm|lifecycle|sales|email|revenue|revops|gtm) automation\\b", "weight": 8, "label": "GTM automation"},
+      {"pattern": "\\bjourney builder\\b", "weight": 8, "label": "journey automation"},
+      {"pattern": "\\bn8n (?:developer|engineer|specialist|consultant|builder)\\b", "weight": 14, "label": "n8n"},
+      {"pattern": "\\bai (?:agent|systems?) (?:builder|developer|specialist|operator|user)\\b", "weight": 14, "label": "applied AI systems"},
+      {"pattern": "\\bai implementation\\b", "weight": 14, "label": "AI implementation"},
+      {"pattern": "\\b(?:marketing|growth|demand generation|sales|revenue|revops|gtm) operations (?:specialist|manager|consultant|engineer|lead)\\b", "weight": 6, "label": "GTM operations"},
+      {"pattern": "\\bcrm (?:integration|implementation) (?:specialist|consultant|engineer|developer)\\b", "weight": 7, "label": "CRM integration"},
+      {"pattern": "\\bai (?:operations|enablement) (?:specialist|consultant|engineer|manager|lead)\\b", "weight": 14, "label": "AI operations or enablement"},
+      {"pattern": "\\bai solutions consultant\\b", "weight": 15, "label": "AI solutions consulting"},
       {"pattern": "\\bai (?:trainer|evaluator)\\b", "weight": 8, "label": "AI training or evaluation"}
     ],
     "positive_job_rules": [

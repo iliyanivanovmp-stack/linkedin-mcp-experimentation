@@ -7,7 +7,7 @@ and surfaces them as outreach opportunities.
 
 ```
 config.json
-    └─ three search lanes, remote/job-type filters, relevance rules
+    └─ two AI-first lanes, one GTM fallback lane, remote/job-type filters, relevance rules
            │
            ▼
 track_jobs.py :: collect()
@@ -63,7 +63,7 @@ modal run signals/automation_jobs_linkedin/modal_app.py --reset-state
 
 | Field | Default | Effect |
 |---|---|---|
-| `search_queries` | array of three queries | AI automation, GTM automation, and domain-gated AI trainer lanes |
+| `search_queries` | array of three queries | AI automation, applied AI/agents, and GTM automation fallback lanes |
 | `work_type` | `remote` | LinkedIn remote-only filter |
 | `remote_policy` | required | Hard-rejects hybrid, on-site, in-office, and mandatory physical-presence language |
 | `job_type` | `contract,part_time,temporary,other` | Limits results to non-permanent engagement types; remote policy remains mandatory |
@@ -82,6 +82,10 @@ Candidates from all lanes are evaluated with the same matcher, then globally
 ranked before the 10-row limit is applied. Rejected and selected reasons appear
 in the JSON run audit but the sheet schema remains unchanged. Set
 `INTER_SEARCH_DELAY_SECONDS=0` only for local no-write validation.
+
+Applied AI and AI-automation title families receive the strongest relevance
+weights. Marketing and GTM automation remain accepted secondary matches, but
+should only fill the batch after stronger AI-focused opportunities.
 
 Remote eligibility is fail-closed at configuration time: `work_type` must remain
 exactly `remote`. LinkedIn's remote filter supplies the positive workplace signal,

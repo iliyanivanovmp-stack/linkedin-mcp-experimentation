@@ -111,6 +111,47 @@ def test_generic_ai_title_requires_aligned_role_family():
 
 
 @pytest.mark.parametrize(
+    "title",
+    [
+        "AI Agent & Automation Engineer",
+        "AI Workflow Builder",
+        "AI & Automation Engineer",
+        "AI Solutions & Automation Developer",
+        "Enterprise Automation & AI Engineer",
+    ],
+)
+def test_accepts_observed_ai_automation_title_variants(title):
+    result = evaluate_job(
+        title,
+        "Remote contract building AI agents, n8n workflows, and API integrations.",
+        CONFIG,
+    )
+    assert result["accepted"], result
+    assert result["score"] >= 14
+
+
+def test_ai_automation_ranks_above_marketing_automation():
+    ai_result = evaluate_job(
+        "AI Agent & Automation Engineer",
+        "Remote contract building AI agents and business workflows.",
+        CONFIG,
+    )
+    marketing_result = evaluate_job(
+        "Marketing Automation Specialist",
+        "Remote contract building CRM and lifecycle automation.",
+        CONFIG,
+    )
+    assert ai_result["accepted"]
+    assert marketing_result["accepted"]
+    assert ai_result["score"] > marketing_result["score"]
+
+
+def test_first_two_search_lanes_are_ai_first():
+    assert all("AI" in query for query in CONFIG["search_queries"][:2])
+    assert "marketing automation" in CONFIG["search_queries"][2].casefold()
+
+
+@pytest.mark.parametrize(
     "description",
     [
         "Remote role with a hybrid schedule and two office days each week.",
