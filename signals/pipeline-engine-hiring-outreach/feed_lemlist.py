@@ -510,6 +510,13 @@ def build_payload(
 def local_date(value: str, timezone_name: str) -> str:
     if not value.strip():
         return ""
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(ZoneInfo(timezone_name)).date().isoformat()
+    except (ValueError, TypeError, KeyError):
+        return ""
 
 
 def retry_due(row: dict[str, str], max_attempts: int, now: datetime | None = None) -> bool:
@@ -531,13 +538,6 @@ def retry_due(row: dict[str, str], max_attempts: int, now: datetime | None = Non
         return parsed <= (now or datetime.now(timezone.utc))
     except ValueError:
         return True
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(ZoneInfo(timezone_name)).date().isoformat()
-    except (ValueError, TypeError, KeyError):
-        return ""
 
 
 def plugged_today(
@@ -638,6 +638,7 @@ def process(
     summary = {
         "dry_run": dry_run,
         "sources": [],
+        "source_errors": [],
         "ready": 0,
         "plugged": 0,
         "failed": 0,
@@ -671,7 +672,12 @@ def process(
             rows = sheet.rows()
             source_result["rows_seen"] = len(rows)
         except Exception as exc:
-            source_result["error"] = read_error(exc)
+            error = read_error(exc)
+            source_result["error"] = error
+            summary["source_errors"].append({
+                "source": source["key"],
+                "error": error,
+            })
             summary["sources"].append(source_result)
             continue
 
@@ -837,6 +843,9 @@ def main() -> None:
         )
     except Exception as exc:
         print(json.dumps({"status": "error", "error": read_error(exc)}, indent=2))
+        sys.exit(1)
+    if result["source_errors"]:
+        print(json.dumps({"status": "error", **result}, indent=2))
         sys.exit(1)
     print(json.dumps({"status": "success", **result}, indent=2))
 

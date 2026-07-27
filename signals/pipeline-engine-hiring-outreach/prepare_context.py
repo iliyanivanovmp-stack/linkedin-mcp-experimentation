@@ -45,7 +45,8 @@ def build_context(row: dict[str, str]) -> dict[str, str]:
 
 
 def prepare_context(sheet: Sheet, dry_run: bool, limit: int | None = None) -> dict[str, Any]:
-    sheet.ensure_columns(CONTEXT_COLUMNS)
+    if not dry_run:
+        sheet.ensure_columns(CONTEXT_COLUMNS)
     now = datetime.now(timezone.utc).isoformat()
     summary = {"dry_run": dry_run, "rows_seen": 0, "updated": 0, "skipped": 0, "missing_domain": 0}
     claimed_domains = {

@@ -58,6 +58,9 @@ def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
         elif str(step.get("step", "")).startswith("feed_"):
             metrics["contacts_plugged"] = int(metrics["contacts_plugged"]) + int(result.get("plugged", 0) or 0)
             metrics["failures"] = int(metrics["failures"]) + int(result.get("failed", 0) or 0)
+            source_errors = result.get("source_errors") or []
+            if isinstance(source_errors, list):
+                metrics["failures"] = int(metrics["failures"]) + len(source_errors)
     return metrics
 
 
@@ -112,6 +115,7 @@ def main() -> None:
             str(SYSTEM_DIR / "collect_hiring_signals.py"),
             "--config", str(SYSTEM_DIR / "sourcing_config.json"),
             "--system-config", str(CONFIG),
+            *dry,
             *sourcing_limit,
         ]))
     commands.extend([

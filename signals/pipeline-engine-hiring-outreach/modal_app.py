@@ -27,17 +27,27 @@ image = (
         "libdrm2", "libdbus-1-3", "libxkbcommon0", "libxcomposite1", "libxdamage1",
         "libxfixes3", "libxrandr2", "libgbm1", "libasound2", "libpango-1.0-0", "libcairo2",
     )
-    .pip_install("fastapi>=0.115", "google-auth>=2.40", "gspread>=6.2", "uv")
-    .run_commands("uv tool install mcp-server-linkedin")
+    .pip_install(
+        "fastapi==0.115.14",
+        "google-auth==2.49.1",
+        "gspread==6.2.1",
+        "uv==0.11.2",
+    )
     .run_commands(
-        f"uv pip install --python {LINKEDIN_PYTHON} gspread>=6.2 google-auth>=2.40"
+        "uv tool install mcp-server-linkedin==4.16.1 "
+        "--with patchright==1.60.1"
+    )
+    .run_commands(
+        f"uv pip install --python {LINKEDIN_PYTHON} "
+        "gspread==6.2.1 google-auth==2.49.1"
     )
     .env({
         "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin",
         "PLAYWRIGHT_BROWSERS_PATH": BROWSERS_PATH,
     })
     .run_commands(
-        "PLAYWRIGHT_BROWSERS_PATH=/patchright-browsers uvx --from patchright patchright install chromium"
+        "PLAYWRIGHT_BROWSERS_PATH=/patchright-browsers "
+        "uvx --from patchright==1.60.1 patchright install chromium"
     )
     .add_local_dir(
         str(WORKFLOW_DIR),

@@ -9,8 +9,11 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 from collect_hiring_signals import FIELDS as LEAD_FIELDS
+from enrich_missing_emails import ENRICHMENT_COLUMNS
 from extract_contacts import COMPANY_GUARDRAIL_COLUMNS, CONTACT_COLUMNS
+from feed_lemlist import OUTPUT_COLUMNS
 from prepare_context import CONTEXT_COLUMNS
+from recover_company_domains import RECOVERY_COLUMNS
 
 
 DEFAULT_CONFIG = Path(__file__).with_name("config.json")
@@ -53,10 +56,20 @@ def main() -> None:
     args = parser.parse_args()
     config = json.loads(args.config.read_text())
     spreadsheet = client().open_by_key(str(config["spreadsheet_id"]))
-    lead_headers = [*LEAD_FIELDS, *CONTEXT_COLUMNS, *COMPANY_GUARDRAIL_COLUMNS]
+    lead_headers = list(dict.fromkeys([
+        *LEAD_FIELDS,
+        *RECOVERY_COLUMNS,
+        *CONTEXT_COLUMNS,
+        *COMPANY_GUARDRAIL_COLUMNS,
+    ]))
+    contact_headers = list(dict.fromkeys([
+        *CONTACT_COLUMNS,
+        *ENRICHMENT_COLUMNS,
+        *OUTPUT_COLUMNS,
+    ]))
     result = [
         ensure_tab(spreadsheet, str(config["companies_worksheet"]), lead_headers, 3000),
-        ensure_tab(spreadsheet, str(config["contacts_worksheet"]), CONTACT_COLUMNS, 6000),
+        ensure_tab(spreadsheet, str(config["contacts_worksheet"]), contact_headers, 6000),
     ]
     print(json.dumps({"spreadsheet_id": config["spreadsheet_id"], "tabs": result}, indent=2))
 

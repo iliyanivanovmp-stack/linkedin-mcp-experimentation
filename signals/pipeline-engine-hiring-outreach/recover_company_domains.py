@@ -49,7 +49,8 @@ class ApolloCompanyClient:
 
 
 def recover_domains(sheet: Sheet, client: ApolloCompanyClient | None, dry_run: bool, limit: int | None) -> dict[str, Any]:
-    sheet.ensure_columns(RECOVERY_COLUMNS)
+    if not dry_run:
+        sheet.ensure_columns(RECOVERY_COLUMNS)
     summary = {"dry_run": dry_run, "rows_seen": 0, "recovered_from_website": 0, "recovered_from_apollo": 0, "unresolved": 0, "failed": 0}
     processed = 0
     for row in sheet.rows():

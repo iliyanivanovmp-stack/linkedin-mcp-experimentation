@@ -20,7 +20,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent
 from lead_sheet import append_leads  # noqa: E402
 
-DEFAULT_CONFIG = ROOT / "config.json"
+DEFAULT_CONFIG = ROOT / "sourcing_config.json"
 DEFAULT_OUTPUT = ROOT / "exports" / "pipeline_engine_hiring_opportunities.csv"
 DEFAULT_STATE = ROOT / "state" / "seen_job_ids.json"
 DEFAULT_LEAD_SHEET = ROOT / "exports" / "pipeline_leads.csv"
@@ -678,6 +678,11 @@ def main() -> None:
     parser.add_argument("--system-config", type=Path, default=DEFAULT_SYSTEM_CONFIG)
     parser.add_argument("--job-id", action="append", dest="job_ids")
     parser.add_argument("--limit", type=int, help="Bound job details/opportunities for a test run")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Inspect and qualify jobs without writing local state, CSV files, or Google Sheets",
+    )
     parser.add_argument("--reset-state", action="store_true")
     args = parser.parse_args()
 
@@ -776,12 +781,27 @@ def main() -> None:
             },
         })
 
-    append_csv(args.output, rows)
-    lead_result = append_leads(args.lead_sheet, lead_rows)
-    google_result = append_google_rows(system_config, rows)
-    save_seen(args.state, seen)
+    if args.dry_run:
+        lead_result = {
+            "received": len(lead_rows),
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "would_insert": len(lead_rows),
+        }
+        google_result = {
+            "received": len(rows),
+            "inserted": 0,
+            "duplicates_skipped": 0,
+            "would_insert": len(rows),
+        }
+    else:
+        append_csv(args.output, rows)
+        lead_result = append_leads(args.lead_sheet, lead_rows)
+        google_result = append_google_rows(system_config, rows)
+        save_seen(args.state, seen)
     print(json.dumps({
         "status": "success",
+        "dry_run": args.dry_run,
         "searches": result["searches"],
         "jobs_inspected": result["jobs_inspected"],
         "opportunities_qualified": len(result["opportunities"]),
@@ -790,7 +810,10 @@ def main() -> None:
         "companies_added_today_before_run": companies_added_today,
         "daily_company_capacity_requested": effective_limit,
         "daily_company_capacity_used": google_result["inserted"],
-        "daily_company_capacity_remaining": max(0, daily_remaining - len(rows)),
+        "daily_company_capacity_remaining": max(
+            0,
+            daily_remaining - (0 if args.dry_run else google_result["inserted"]),
+        ),
         "duplicate_jobs_skipped": duplicate_jobs,
         "output": str(args.output),
         "state": str(args.state),

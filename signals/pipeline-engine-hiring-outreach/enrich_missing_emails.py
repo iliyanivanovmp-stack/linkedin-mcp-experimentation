@@ -23,7 +23,7 @@ from extract_contacts import (
 )
 
 
-DEFAULT_CONFIG = Path(__file__).with_name("contact_extraction_config.json")
+DEFAULT_CONFIG = Path(__file__).with_name("config.json")
 APOLLO_SKILL_ENV = Path.home() / ".codex" / "skills" / "scrape-leads-apollo" / ".env"
 ENRICHMENT_COLUMNS = [
     "lemlist_enrichment_id",
@@ -111,18 +111,24 @@ class ApolloEnrichmentClient:
         return data.get("person") or {}
 
 
-def open_contacts_sheet(config: dict[str, Any], contacts_csv: Path | None) -> Sheet:
+def open_contacts_sheet(
+    config: dict[str, Any],
+    contacts_csv: Path | None,
+    dry_run: bool = False,
+) -> Sheet:
     if contacts_csv:
         sheet = CsvSheet(contacts_csv)
-        sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+        if not dry_run:
+            sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
         return sheet
     workbook = GoogleWorkbook(str(config["spreadsheet_id"]))
     sheet = workbook.worksheet(
         str(config["contacts_worksheet"]),
         [*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS],
-        create_if_missing=True,
+        create_if_missing=not dry_run,
     )
-    sheet.ensure_columns(ENRICHMENT_COLUMNS)
+    if not dry_run:
+        sheet.ensure_columns(ENRICHMENT_COLUMNS)
     return sheet
 
 
@@ -159,7 +165,8 @@ def placeholder_email(
 
 
 def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: bool, limit: int | None) -> dict[str, Any]:
-    sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+    if not dry_run:
+        sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
     candidates = []
     summary = {
         "dry_run": dry_run,
@@ -241,7 +248,8 @@ def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: boo
 
 
 def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: bool, limit: int | None) -> dict[str, Any]:
-    sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+    if not dry_run:
+        sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
     summary = {
         "dry_run": dry_run,
         "mode": "apollo",
@@ -302,7 +310,8 @@ def finalize_linkedin_only(
     campaign_name: str = LINKEDIN_ONLY_CAMPAIGN,
     placeholder_domain: str = PLACEHOLDER_EMAIL_DOMAIN,
 ) -> dict[str, Any]:
-    sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+    if not dry_run:
+        sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
     summary = {
         "dry_run": dry_run,
         "mode": "finalize_linkedin_only",
@@ -352,7 +361,8 @@ def extract_email_result(result: dict[str, Any]) -> tuple[str, str]:
 
 
 def poll_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: bool, limit: int | None) -> dict[str, Any]:
-    sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+    if not dry_run:
+        sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
     summary = {
         "dry_run": dry_run,
         "mode": "poll",
@@ -440,7 +450,7 @@ def main() -> None:
     try:
         load_env_file()
         config = load_config(args.config)
-        sheet = open_contacts_sheet(config, args.contacts_csv)
+        sheet = open_contacts_sheet(config, args.contacts_csv, args.dry_run)
         if args.mode == "start":
             api_key = os.environ.get("LEMLIST_API_KEY", "").strip()
             if not api_key:

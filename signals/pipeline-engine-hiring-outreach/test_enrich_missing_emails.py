@@ -58,6 +58,21 @@ class EnrichMissingEmailsTests(unittest.TestCase):
             self.assertIn("email_finding", text)
             self.assertIn("enr_1", text)
 
+    def test_start_dry_run_does_not_change_schema_or_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "contacts.csv"
+            original = (
+                "status,person_linkedin_url,company_domain,first_name,last_name,company_name,email\n"
+                "needs_email,https://linkedin.com/in/ada,example.com,Ada,Lovelace,Example,\n"
+            )
+            path.write_text(original, encoding="utf-8")
+            sheet = CsvSheet(path)
+
+            result = start_enrichment(sheet, FakeClient(), dry_run=True, limit=None)
+
+            self.assertEqual(result["queued"], 1)
+            self.assertEqual(path.read_text(encoding="utf-8"), original)
+
     def test_poll_sets_email_and_clears_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "contacts.csv"

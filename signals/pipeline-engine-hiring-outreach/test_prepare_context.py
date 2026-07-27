@@ -27,3 +27,24 @@ def test_prepare_context_qualifies_one_row_and_rejects_missing_domain():
     rows = sheet.rows()
     assert rows[0].data["status"] == "outreach_ready"
     assert rows[1].data["status"] == "needs_company_domain"
+
+
+def test_prepare_context_dry_run_does_not_change_schema_or_rows():
+    sheet = MemorySheet(
+        ["status", "company_name", "company_domain", "job_title", "job_url"],
+        [{
+            "status": "opportunity_detected",
+            "company_name": "Acme",
+            "company_domain": "acme.com",
+            "job_title": "SDR",
+            "job_url": "https://linkedin.com/jobs/view/1",
+        }],
+    )
+    original_headers = list(sheet.headers)
+    original_row = dict(sheet.rows()[0].data)
+
+    result = prepare_context(sheet, dry_run=True)
+
+    assert result["updated"] == 1
+    assert sheet.headers == original_headers
+    assert sheet.rows()[0].data == original_row

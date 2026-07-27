@@ -1,8 +1,11 @@
 # Pipeline Engine Hiring Outreach — Agent Guide
 
-This folder is a standalone production workflow. Do not import files from the
-former parent experimentation repository. Keep Funnel Audit and
-Technology-Based Outreach isolated from this system.
+This folder is the Pipeline Engine hiring-outreach production component inside
+the parent `linkedin-mcp-experimentation` repository. The parent repository is
+the source of Git policy, LinkedIn session operations, and shared signal-routing
+documentation. The Modal runtime bundle remains self-contained so it can deploy
+this directory without packaging unrelated sibling systems. Keep Funnel Audit
+and Technology-Based Outreach isolated from this runtime.
 
 ## Purpose and flow
 
@@ -33,7 +36,8 @@ The combined cap is 30 contacts per Europe/Sofia calendar day.
 - Dedicated trigger secret: `pipeline-engine-hiring-trigger-secret`
 - Modal volume: `pipeline-engine-hiring-linkedin-session`
 - n8n workflow: `Pipeline Engine Hiring Outreach — Daily`
-  (`HoBUmGREhd4uE5F3`), active daily at 08:45
+  (`HoBUmGREhd4uE5F3`), configured for 08:45 and intentionally inactive until
+  the launch checklist passes
 
 ## Important files
 
@@ -55,6 +59,9 @@ PYTHONPATH=. python3 -m pytest -q
 python3 -m compileall -q .
 modal deploy modal_app.py
 ```
+
+`--dry-run` must never mutate local state, Google Sheets, or Lemlist, including
+when sourcing is enabled.
 
 Do not run a live pipeline, deploy Modal, edit campaign IDs, change the daily
 cap, delete Sheet rows, or remove Lemlist leads unless the user explicitly asks.

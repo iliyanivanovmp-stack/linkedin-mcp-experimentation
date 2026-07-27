@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_CONFIG = Path(__file__).with_name("contact_extraction_config.json")
+DEFAULT_CONFIG = Path(__file__).with_name("config.json")
 APOLLO_SKILL_ENV = Path.home() / ".codex" / "skills" / "scrape-leads-apollo" / ".env"
 
 CONTACT_COLUMNS = [
@@ -800,6 +800,10 @@ def canonical_title(value: str) -> str:
 
 def matches_decision_maker_title(title: str, configured_titles: list[str]) -> bool:
     """Require an actual configured decision-maker title, irrespective of word order."""
+    if re.search(r"\b(intern|internship|student|trainee)\b", title, flags=re.I):
+        return False
+    if re.search(r"\bfounder['’]s\b", title, flags=re.I):
+        return False
     candidate = set(canonical_title(title).split())
     if not candidate:
         return False

@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
 from collect_hiring_signals import classify_job
-from extract_contacts import MemorySheet, decision_maker_titles_for_company
+from extract_contacts import (
+    MemorySheet,
+    decision_maker_titles_for_company,
+    matches_decision_maker_title,
+)
 from feed_lemlist import retry_due
 from recover_company_domains import recover_domains
 
@@ -39,6 +43,18 @@ def test_role_family_selects_relevant_decision_makers():
     assert decision_maker_titles_for_company({"hiring_role_family": "unknown"}, config) == ["founder"]
 
 
+def test_irrelevant_titles_do_not_match_outbound_decision_makers():
+    titles = [
+        "founder", "co-founder", "ceo", "chief revenue officer", "cro",
+        "vp sales", "head of sales", "sales director",
+    ]
+    assert not matches_decision_maker_title("Senior Product Designer", titles)
+    assert not matches_decision_maker_title("Technical Product Owner", titles)
+    assert not matches_decision_maker_title("Founder's Associate Intern", titles)
+    assert not matches_decision_maker_title("Founder's Associate", titles)
+    assert matches_decision_maker_title("Vice President of Sales", titles)
+
+
 def test_delivery_retry_is_bounded_and_time_aware():
     future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
     assert not retry_due({"status": "delivery_failed", "delivery_attempts": "1", "delivery_next_retry_at": future}, 4)
@@ -55,3 +71,18 @@ def test_domain_recovery_derives_domain_from_known_website():
     assert result["recovered_from_website"] == 1
     assert sheet.rows()[0].data["company_domain"] == "acme.com"
     assert sheet.rows()[0].data["status"] == "opportunity_detected"
+
+
+def test_domain_recovery_dry_run_does_not_change_schema_or_rows():
+    sheet = MemorySheet(
+        ["status", "company_name", "company_website", "company_domain"],
+        [{"status": "needs_company_domain", "company_name": "Acme", "company_website": "https://www.acme.com", "company_domain": ""}],
+    )
+    original_headers = list(sheet.headers)
+    original_row = dict(sheet.rows()[0].data)
+
+    result = recover_domains(sheet, client=None, dry_run=True, limit=None)
+
+    assert result["recovered_from_website"] == 1
+    assert sheet.headers == original_headers
+    assert sheet.rows()[0].data == original_row

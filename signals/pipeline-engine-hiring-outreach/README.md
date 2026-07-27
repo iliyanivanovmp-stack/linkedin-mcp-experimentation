@@ -1,6 +1,8 @@
 # Pipeline Engine Hiring Outreach
 
-Independent production system for detecting companies hiring pipeline roles and routing decision makers into dedicated Lemlist campaigns.
+Production component of the parent `linkedin-mcp-experimentation` repository
+for detecting companies hiring pipeline roles and routing decision makers into
+dedicated Lemlist campaigns.
 
 Flow:
 
@@ -42,9 +44,18 @@ in `pipeline-engine-hiring-outreach-secrets`.
 
 Workbook: https://docs.google.com/spreadsheets/d/1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI/edit
 
-The system owns its scripts, feeder configuration, Modal deployment, secret, and daily n8n workflow. It has no runtime or scheduling dependency on Funnel Audit or Technology-Based Outreach.
+The system owns its scripts, feeder configuration, Modal deployment, secrets,
+and daily n8n workflow. It remains operationally part of the parent repository:
+the parent owns Git policy, LinkedIn session bootstrap/refresh guidance, and the
+shared signal-routing contract. It has no runtime dependency on Funnel Audit or
+Technology-Based Outreach.
 
-## Standalone operation
+Parent documentation:
+
+- `../../README.md` — LinkedIn MCP session setup, refresh, and safety rules.
+- `../PIPELINE_USAGE.md` — shared signal-routing and qualification contract.
+
+## Component operation
 
 Run all commands from this directory:
 
@@ -56,5 +67,22 @@ modal deploy modal_app.py
 ```
 
 `modal_app.py`, `lead_sheet.py`, all configs, and all runtime scripts are local
-to this folder. Production credentials are supplied through the Modal secret,
-not committed files.
+to this folder so Modal can package the component without sibling workflows.
+Production credentials are supplied through Modal secrets, not committed files.
+
+`--dry-run` is non-mutating across sourcing, context preparation, domain
+recovery, contact extraction, enrichment, and Lemlist feeding.
+
+## Launch checklist
+
+Keep the Lemlist campaigns and n8n workflow inactive until all items pass:
+
+1. Run `PYTHONPATH=. python3 -m pytest -q`.
+2. Run `python3 -m compileall -q .`.
+3. Refresh and verify the dedicated LinkedIn session volume.
+4. Run `python3 setup_workbook.py` to reconcile the live Sheet schema.
+5. Deploy the validated `modal_app.py`.
+6. Run a bounded Modal dry run with sourcing enabled and confirm zero mutations.
+7. Configure valid Lemlist sequences and senders, then pass Lemlist readiness.
+8. Activate both Lemlist campaigns.
+9. Publish n8n workflow `HoBUmGREhd4uE5F3`.
