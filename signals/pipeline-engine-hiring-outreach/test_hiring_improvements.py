@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from collect_hiring_signals import classify_job
+from collect_hiring_signals import classify_job, compensation_details
 from extract_contacts import (
     MemorySheet,
     decision_maker_titles_for_company,
@@ -26,6 +26,18 @@ def sourcing_config():
 def test_growth_role_requires_pipeline_evidence():
     assert classify_job("Acme\nGrowth Manager\nOwn partnerships and events", sourcing_config()) is None
     assert classify_job("Acme\nGrowth Manager\nOwn outbound prospecting and CRM", sourcing_config())
+
+
+def test_compensation_ignores_pipeline_kpis():
+    details = compensation_details(
+        "$150K–$250K in sourced pipeline per month\n"
+        "Salary Range: $90,000 USD - $100,000 USD"
+    )
+
+    assert details["compensation_min"] == 90_000
+    assert details["compensation_max"] == 100_000
+    assert details["compensation_period"] == "year"
+    assert "sourced pipeline" not in details["compensation_text"]
 
 
 def test_staffing_company_and_commission_only_role_are_rejected():

@@ -394,6 +394,13 @@ def compensation_details(text: str) -> dict[str, Any]:
             pay_candidate,
         )
         has_pay_language = re.search(rf"(?i)\b(?:{pay_words})\b", pay_candidate)
+        has_pipeline_metric = re.search(
+            r"(?i)\b(?:sourced\s+pipeline|pipeline\s+(?:target|quota|per\s+)|"
+            r"revenue\s+(?:target|quota|per\s+)|bookings?\s+(?:target|quota|per\s+))",
+            pay_candidate,
+        )
+        if has_pipeline_metric and not has_pay_language:
+            continue
         has_currency_amount = currency_amounts and (
             len(currency_amounts) >= 2 or has_pay_period or has_pay_language
         )
