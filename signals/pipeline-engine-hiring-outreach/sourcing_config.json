@@ -62,7 +62,17 @@
   "exclude_description_terms": [
     "commission only",
     "unpaid position",
-    "volunteer position"
+    "volunteer position",
+    "b2c",
+    "direct-to-consumer",
+    "direct to consumer",
+    "d2c",
+    "individual consumers",
+    "end consumers",
+    "retail customers",
+    "consumer products",
+    "shoppers",
+    "residential customers"
   ],
   "evidence_terms": [
     "cold calling",
