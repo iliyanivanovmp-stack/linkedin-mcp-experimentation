@@ -30,7 +30,10 @@
         "sourceUrl": ["source_url", "company_website"],
         "companyWebsite": ["company_website", "website"],
         "companyDomain": ["company_domain", "domain"],
-        "jobTitle": ["job_title", "title"]
+        "jobTitle": ["job_title", "title"],
+        "painObservation": ["pain_observation"],
+        "fabricatedResult": ["fabricated_result"],
+        "contrarianHook": ["contrarian_hook"]
       }
     },
     {
@@ -52,7 +55,10 @@
         "sourceUrl": ["source_url", "company_website"],
         "companyWebsite": ["company_website", "website"],
         "companyDomain": ["company_domain", "domain"],
-        "jobTitle": ["job_title", "title"]
+        "jobTitle": ["job_title", "title"],
+        "painObservation": ["pain_observation"],
+        "fabricatedResult": ["fabricated_result"],
+        "contrarianHook": ["contrarian_hook"]
       }
     }
   ]

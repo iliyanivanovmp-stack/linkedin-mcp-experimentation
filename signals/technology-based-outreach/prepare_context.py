@@ -22,6 +22,9 @@ CONTEXT_COLUMNS = [
     "automation_opportunity_3",
     "outreach_angle",
     "icebreaker",
+    "pain_observation",
+    "fabricated_result",
+    "contrarian_hook",
     "outreach_context_generated_at",
 ]
 
@@ -64,6 +67,51 @@ def join_tools(tools: list[str]) -> str:
     return f"{', '.join(tools[:-1])}, and {tools[-1]}"
 
 
+TEAM_TYPE_SIGNALS: list[tuple[set[str], str]] = [
+    ({"affise", "tune", "impact", "partnerstack", "cake", "everflow", "hasoffers"}, "partner marketing team"),
+    ({"salesforce", "hubspot", "pipedrive", "close", "zoho", "copper"}, "sales team"),
+    ({"shopify", "woocommerce", "klaviyo", "gorgias", "bigcommerce", "magento"}, "e-commerce team"),
+    ({"tableau", "looker", "powerbi", "metabase", "domo"}, "ops team"),
+    ({"jira", "linear", "github", "gitlab", "asana", "monday"}, "engineering team"),
+    ({"greenhouse", "lever", "workday", "bamboohr", "lever"}, "recruiting team"),
+    ({"mailchimp", "activecampaign", "marketo", "sendgrid", "brevo"}, "marketing team"),
+]
+
+
+def infer_team_type(tools: list[str]) -> str:
+    tool_lower = {t.casefold() for t in tools}
+    for signals, team in TEAM_TYPE_SIGNALS:
+        if tool_lower & signals:
+            return team
+    return "operations team"
+
+
+def pain_observation_text(tools: list[str]) -> str:
+    names = join_tools(tools)
+    return (
+        f"When a team is running {names} without a connection layer, "
+        "someone is manually moving data between them. Usually 3 to 5 hours a week."
+    )
+
+
+def fabricated_result_text(tools: list[str]) -> str:
+    team = infer_team_type(tools)
+    first = tools[0]
+    second = tools[1] if len(tools) > 1 else tools[0]
+    return (
+        f"We connected {first} and {second} for a {team} last month. "
+        "They went from pulling reports manually every week to having them auto-generated overnight."
+    )
+
+
+def contrarian_hook_text(tools: list[str]) -> str:
+    names = join_tools(tools)
+    return (
+        f"Most companies running {names} already have some version of these connected. "
+        "Usually through Zapier, a manual export, or a sheet someone built two years ago that no one fully trusts."
+    )
+
+
 def automation_examples(tools: list[str]) -> list[str]:
     names = {tool.casefold(): tool for tool in tools}
     if "slack" in names and "clickup" in names:
@@ -101,8 +149,11 @@ def generated_context(row: dict[str, str]) -> dict[str, str]:
         "automation_opportunity_1": examples[0],
         "automation_opportunity_2": examples[1],
         "automation_opportunity_3": examples[2],
-        "outreach_angle": f"Connect {names} so alerts, actions, and updates stay in one workflow.",
+        "outreach_angle": f"connect {names} so alerts, actions, and updates stay in one workflow.",
         "icebreaker": f"Saw your team is using {names}.",
+        "pain_observation": pain_observation_text(tools),
+        "fabricated_result": fabricated_result_text(tools),
+        "contrarian_hook": contrarian_hook_text(tools),
     }
 
 
