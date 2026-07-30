@@ -176,6 +176,20 @@ def evaluate_job(
                     "rejection_reason": f"not fully remote: {label}",
                 }
 
+    work_authorization_policy = config.get("work_authorization_policy", {})
+    if work_authorization_policy.get("required", False):
+        for rule in work_authorization_policy.get("hard_exclude_rules", []):
+            pattern = str(rule.get("pattern", ""))
+            if pattern and re.search(pattern, full_text, re.IGNORECASE):
+                label = str(rule.get("label") or pattern)
+                return {
+                    "accepted": False,
+                    "score": 0,
+                    "positive_signals": [],
+                    "negative_signals": [label],
+                    "rejection_reason": f"work authorization incompatible: {label}",
+                }
+
     for pattern in relevance.get("hard_exclude_title_patterns", []):
         if re.search(pattern, title, re.IGNORECASE):
             return {
@@ -309,6 +323,20 @@ def validate_config(config: dict[str, Any], config_path: Path) -> dict[str, Any]
     for rule in remote_policy.get("hard_exclude_rules", []):
         if not isinstance(rule, dict) or not rule.get("pattern"):
             raise ValueError(f"Invalid rule in remote_policy.hard_exclude_rules: {rule!r}")
+        re.compile(str(rule["pattern"]), re.IGNORECASE)
+
+    work_authorization_policy = config.get("work_authorization_policy")
+    if (
+        not isinstance(work_authorization_policy, dict)
+        or not work_authorization_policy.get("required", False)
+    ):
+        raise ValueError("config.work_authorization_policy.required must be true")
+    for rule in work_authorization_policy.get("hard_exclude_rules", []):
+        if not isinstance(rule, dict) or not rule.get("pattern"):
+            raise ValueError(
+                "Invalid rule in work_authorization_policy.hard_exclude_rules: "
+                f"{rule!r}"
+            )
         re.compile(str(rule["pattern"]), re.IGNORECASE)
 
     regex_groups = (

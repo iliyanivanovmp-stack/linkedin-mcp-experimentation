@@ -4,7 +4,7 @@
 # config.json and should be added only after explicit job-by-job feedback.
 
 schema_version: 1
-updated: "2026-07-27"
+updated: "2026-07-30"
 
 candidate:
   name: "Iliyan Ivanov"
@@ -40,6 +40,10 @@ job_preferences:
   work_type_requirement: >-
     Fully remote only. Reject hybrid, on-site, in-office, recurring office-day,
     and occasional mandatory physical-presence requirements.
+  work_authorization_requirement: >-
+    Reject U.S. roles that require existing U.S. work authorization or state
+    that visa or employment sponsorship is unavailable. The candidate does not
+    currently have U.S. work rights.
   strongest_role_families:
     - "AI automation specialist"
     - "workflow automation engineer"
@@ -257,6 +261,10 @@ job_relevance_feedback:
     - "robotics"
     - "traditional software engineering"
     - "digital product content management"
+  confirmed_eligibility_exclusions:
+    - "Existing U.S. work authorization is required"
+    - "U.S. work rights or a U.S. work permit are required"
+    - "Visa or employment sponsorship is unavailable"
   ai_trainer_policy:
     decision: "conditional"
     require_domain_alignment: true

@@ -17,6 +17,16 @@
       {"pattern": "\\b(?:occasional|regular|weekly|monthly|quarterly)\\b.{0,60}\\b(?:office|on[- ]?site|in-person)\\b", "label": "periodic physical presence"}
     ]
   },
+  "work_authorization_policy": {
+    "required": true,
+    "hard_exclude_rules": [
+      {"pattern": "\\b(?:must|need to|required to|are required to)\\s+be\\s+(?:legally\\s+)?(?:authorized|eligible) to work (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "U.S. work authorization required"},
+      {"pattern": "\\b(?:must|need to|required to|are required to)\\s+(?:have|possess)\\s+(?:valid\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\s+work\\s+(?:authorization|rights?|permit)\\b", "label": "U.S. work rights required"},
+      {"pattern": "(?<!no )(?<!no existing )(?<!no valid )\\b(?:united states|u\\.?\\s*s\\.?|usa)\\s+work\\s+(?:authorization|rights?|permit)\\b.{0,40}\\b(?:(?:is|are|be)\\s+)?(?<!not )(?:required|mandatory)\\b", "label": "U.S. work rights required"},
+      {"pattern": "\\b(?:visa|immigration|employment)\\s+sponsorship\\s+(?:is\\s+|will\\s+be\\s+)?(?:not available|not provided|unavailable)\\b", "label": "U.S. visa sponsorship unavailable"},
+      {"pattern": "\\b(?:cannot|can['’]t|do not|does not|will not|unable to)\\s+(?:provide|offer|support|sponsor)\\b.{0,40}\\b(?:visa|immigration|employment|sponsorship|work authorization)\\b", "label": "U.S. visa sponsorship unavailable"}
+    ]
+  },
   "job_type": "contract,part_time,temporary,other",
   "date_posted": "past_week",
   "sort_by": "date",

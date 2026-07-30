@@ -66,6 +66,7 @@ modal run signals/automation_jobs_linkedin/modal_app.py --reset-state
 | `search_queries` | array of three queries | AI automation, applied AI/agents, and GTM automation fallback lanes |
 | `work_type` | `remote` | LinkedIn remote-only filter |
 | `remote_policy` | required | Hard-rejects hybrid, on-site, in-office, and mandatory physical-presence language |
+| `work_authorization_policy` | required | Hard-rejects jobs requiring existing U.S. work rights or offering no sponsorship |
 | `job_type` | `contract,part_time,temporary,other` | Limits results to non-permanent engagement types; remote policy remains mandatory |
 | `date_posted` | `past_week` | Overlapping recovery window; dedup prevents repeat delivery after missed runs |
 | `sort_by` | `date` | `date` or `relevance` |
@@ -91,6 +92,11 @@ Remote eligibility is fail-closed at configuration time: `work_type` must remain
 exactly `remote`. LinkedIn's remote filter supplies the positive workplace signal,
 while the job title and description are independently scanned for contradictory
 hybrid, on-site, office-day, or other mandatory physical-presence requirements.
+
+Work authorization eligibility is also fail-closed. The full job description,
+including employer boilerplate, is scanned before scoring. Jobs requiring existing
+U.S. work authorization or explicitly stating that sponsorship is unavailable are
+rejected and cannot enter the ranked daily batch.
 
 `candidate_profile.yaml` is the human-readable source profile. Confirmed job
 feedback belongs there first, then must be represented by tested rules in

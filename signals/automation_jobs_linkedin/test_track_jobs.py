@@ -196,6 +196,38 @@ def test_incidental_workplace_words_do_not_cause_false_rejection(description):
     assert result["accepted"], result
 
 
+@pytest.mark.parametrize(
+    "description",
+    [
+        (
+            "All applicants applying for U.S. job openings must be legally "
+            "authorized to work in the United States."
+        ),
+        "Candidates are required to have valid U.S. work authorization.",
+        "U.S. work rights are required for this contract.",
+        "Visa sponsorship is not available for this position.",
+        "We are unable to sponsor employment visas at this time.",
+    ],
+)
+def test_rejects_jobs_requiring_us_work_rights(description):
+    result = evaluate_job("Marketing Automation Specialist", description, CONFIG)
+    assert not result["accepted"], result
+    assert result["rejection_reason"].startswith("work authorization incompatible:")
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Remote contract open worldwide; no existing U.S. work authorization is required.",
+        "Visa sponsorship is available for qualified candidates.",
+        "We support candidates through the U.S. work authorization process.",
+    ],
+)
+def test_does_not_reject_compatible_authorization_language(description):
+    result = evaluate_job("AI Automation Specialist", description, CONFIG)
+    assert result["accepted"], result
+
+
 def test_config_validation_requires_remote_only_search():
     unsafe = json.loads(json.dumps(CONFIG))
     unsafe["work_type"] = "remote,hybrid"
