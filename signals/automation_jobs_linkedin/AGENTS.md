@@ -7,7 +7,7 @@ and surfaces them as outreach opportunities.
 
 ```
 config.json
-    └─ two AI-first lanes, one GTM fallback lane, remote/job-type filters, relevance rules
+    └─ AI-first + GTM lanes × four locations, remote/job-type filters, relevance rules
            │
            ▼
 track_jobs.py :: collect()
@@ -63,18 +63,20 @@ modal run signals/automation_jobs_linkedin/modal_app.py --reset-state
 
 | Field | Default | Effect |
 |---|---|---|
-| `search_queries` | array of three queries | AI automation, applied AI/agents, and GTM automation fallback lanes |
+| `search_queries` | array of two queries | AI automation/applied AI and GTM/email/pipeline automation lanes |
+| `locations` | four explicit locations | Runs every lane for United States, Europe, Sofia/Bulgaria, and Australia |
 | `work_type` | `remote` | LinkedIn remote-only filter |
 | `remote_policy` | required | Hard-rejects hybrid, on-site, in-office, and mandatory physical-presence language |
 | `work_authorization_policy` | required | Hard-rejects jobs requiring existing U.S. work rights or offering no sponsorship |
+| `location_eligibility_policy` | required | Hard-rejects remote jobs that still require the candidate to live in the U.S. |
 | `job_type` | `contract,part_time,temporary,other` | Limits results to non-permanent engagement types; remote policy remains mandatory |
 | `date_posted` | `past_week` | Overlapping recovery window; dedup prevents repeat delivery after missed runs |
 | `sort_by` | `date` | `date` or `relevance` |
 | `max_pages` | `1` | Pages of search results to fetch (25 jobs/page) |
 | `max_jobs_per_run` | `10` | Max new rows written per run |
-| `inter_search_delay_min_seconds` | `180` | Minimum pause before each search after the first |
-| `inter_search_delay_max_seconds` | `300` | Maximum pause before each search after the first |
-| `candidate_fetch_multiplier` | `5` | Candidate inspection pool relative to the final row limit |
+| `inter_search_delay_min_seconds` | `45` | Minimum pause before each search after the first |
+| `inter_search_delay_max_seconds` | `75` | Maximum pause before each search after the first |
+| `candidate_fetch_multiplier` | `2` | Per-search candidate inspection pool relative to the final row limit |
 | `relevance` | profile-derived rules | Hard exclusions, positive scoring, and AI-trainer domain policy |
 | `exclude_title_terms` | title blocklist | Case-insensitive title exclusions |
 | `exclude_job_terms` | `["robotics"]` | Case-insensitive whole-post exclusions |
@@ -90,13 +92,14 @@ should only fill the batch after stronger AI-focused opportunities.
 
 Remote eligibility is fail-closed at configuration time: `work_type` must remain
 exactly `remote`. LinkedIn's remote filter supplies the positive workplace signal,
-while the job title and description are independently scanned for contradictory
-hybrid, on-site, office-day, or other mandatory physical-presence requirements.
+while the complete posting is independently scanned for any hybrid or on-site
+language, office days, or other mandatory physical-presence requirements.
 
 Work authorization eligibility is also fail-closed. The full job description,
 including employer boilerplate, is scanned before scoring. Jobs requiring existing
 U.S. work authorization or explicitly stating that sponsorship is unavailable are
-rejected and cannot enter the ranked daily batch.
+rejected and cannot enter the ranked daily batch. The same hard-rejection behavior
+applies when an otherwise remote role requires the worker to be based in the U.S.
 
 `candidate_profile.yaml` is the human-readable source profile. Confirmed job
 feedback belongs there first, then must be represented by tested rules in

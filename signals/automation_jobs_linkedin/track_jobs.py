@@ -190,6 +190,20 @@ def evaluate_job(
                     "rejection_reason": f"work authorization incompatible: {label}",
                 }
 
+    location_policy = config.get("location_eligibility_policy", {})
+    if location_policy.get("required", False):
+        for rule in location_policy.get("hard_exclude_rules", []):
+            pattern = str(rule.get("pattern", ""))
+            if pattern and re.search(pattern, full_text, re.IGNORECASE):
+                label = str(rule.get("label") or pattern)
+                return {
+                    "accepted": False,
+                    "score": 0,
+                    "positive_signals": [],
+                    "negative_signals": [label],
+                    "rejection_reason": f"location incompatible: {label}",
+                }
+
     for pattern in relevance.get("hard_exclude_title_patterns", []):
         if re.search(pattern, title, re.IGNORECASE):
             return {
@@ -304,6 +318,13 @@ def validate_config(config: dict[str, Any], config_path: Path) -> dict[str, Any]
     """Validate regexes and the executable contract with the candidate profile."""
     if not config.get("search_queries"):
         raise ValueError("config.search_queries must contain at least one query")
+    locations = config.get("locations")
+    if (
+        not isinstance(locations, list)
+        or not locations
+        or any(not isinstance(location, str) or not location.strip() for location in locations)
+    ):
+        raise ValueError("config.locations must contain at least one non-empty location")
     relevance = config.get("relevance")
     if not isinstance(relevance, dict):
         raise ValueError("config.relevance must be an object")
@@ -335,6 +356,20 @@ def validate_config(config: dict[str, Any], config_path: Path) -> dict[str, Any]
         if not isinstance(rule, dict) or not rule.get("pattern"):
             raise ValueError(
                 "Invalid rule in work_authorization_policy.hard_exclude_rules: "
+                f"{rule!r}"
+            )
+        re.compile(str(rule["pattern"]), re.IGNORECASE)
+
+    location_policy = config.get("location_eligibility_policy")
+    if (
+        not isinstance(location_policy, dict)
+        or not location_policy.get("required", False)
+    ):
+        raise ValueError("config.location_eligibility_policy.required must be true")
+    for rule in location_policy.get("hard_exclude_rules", []):
+        if not isinstance(rule, dict) or not rule.get("pattern"):
+            raise ValueError(
+                "Invalid rule in location_eligibility_policy.hard_exclude_rules: "
                 f"{rule!r}"
             )
         re.compile(str(rule["pattern"]), re.IGNORECASE)
@@ -881,6 +916,15 @@ async def wait_between_searches(config: dict[str, Any], query_index: int) -> Non
         await asyncio.sleep(delay)
 
 
+def configured_search_targets(config: dict[str, Any]) -> list[tuple[str, str]]:
+    """Expand every expertise lane across every explicitly targeted location."""
+    return [
+        (str(query), str(location))
+        for query in config.get("search_queries", [])
+        for location in config.get("locations", [])
+    ]
+
+
 def interleave_job_groups(groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
     """Round-robin query results so each search lane contributes to the final ten."""
     combined: list[dict[str, Any]] = []
@@ -944,19 +988,24 @@ async def collect_guest_api(config: dict[str, Any]) -> dict[str, Any]:
     max_jobs = int(config.get("max_jobs_per_run", 10))
     fetch_limit = max_jobs * int(config.get("candidate_fetch_multiplier", 3))
 
-    for query_index, query in enumerate(config["search_queries"]):
-        await wait_between_searches(config, query_index)
+    for search_index, (query, location) in enumerate(configured_search_targets(config)):
+        await wait_between_searches(config, search_index)
         query_jobs: list[dict[str, Any]] = []
         search_url, job_ids = await _guest_search(
             query,
-            location=config.get("location"),
+            location=location,
             max_pages=int(config.get("max_pages", 1)),
             date_posted=config.get("date_posted"),
             job_type=config.get("job_type"),
             work_type=config.get("work_type"),
             sort_by=config.get("sort_by", "date"),
         )
-        searches.append({"query": query, "url": search_url, "jobs_found": len(job_ids)})
+        searches.append({
+            "query": query,
+            "location": location,
+            "url": search_url,
+            "jobs_found": len(job_ids),
+        })
 
         for job_id in job_ids[:fetch_limit]:
             job_id = str(job_id)
@@ -997,7 +1046,8 @@ async def collect_guest_api(config: dict[str, Any]) -> dict[str, Any]:
                 "relevance_score": evaluation["score"],
                 "relevance_signals": evaluation["positive_signals"],
                 "negative_signals": evaluation.get("negative_signals", []),
-                "search_lane": query_index + 1,
+                "search_lane": search_index + 1,
+                "search_location": location,
             })
 
             if len(query_jobs) >= fetch_limit:
@@ -1053,12 +1103,12 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
 
         extractor = LinkedInExtractor(browser.page)
 
-        for query_index, query in enumerate(config["search_queries"]):
-            await wait_between_searches(config, query_index)
+        for search_index, (query, location) in enumerate(configured_search_targets(config)):
+            await wait_between_searches(config, search_index)
             query_jobs: list[dict[str, Any]] = []
             search = await extractor.search_jobs(
                 query,
-                location=config.get("location"),
+                location=location,
                 max_pages=int(config.get("max_pages", 1)),
                 date_posted=config.get("date_posted"),
                 job_type=config.get("job_type"),
@@ -1067,6 +1117,7 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
             )
             searches.append({
                 "query": query,
+                "location": location,
                 "url": search.get("url", ""),
                 "jobs_found": len(search.get("job_ids", [])),
             })
@@ -1086,7 +1137,10 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
                     continue
 
                 company_name, job_title = job_identity(text)
-                evaluation = evaluate_job(job_title, job_description(text), config)
+                # The browser payload includes LinkedIn's workplace/location header
+                # before "About the job". Evaluate the full posting so a Hybrid or
+                # On-site label cannot be hidden by description-only extraction.
+                evaluation = evaluate_job(job_title, text, config)
                 evaluations.append({
                     "job_id": job_id,
                     "job_title": job_title,
@@ -1125,7 +1179,8 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
                     "relevance_score": evaluation["score"],
                     "relevance_signals": evaluation["positive_signals"],
                     "negative_signals": evaluation.get("negative_signals", []),
-                    "search_lane": query_index + 1,
+                    "search_lane": search_index + 1,
+                    "search_location": location,
                 })
 
                 if len(query_jobs) >= fetch_limit:

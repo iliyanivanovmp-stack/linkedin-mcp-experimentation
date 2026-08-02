@@ -9,6 +9,7 @@ import pytest
 import track_jobs
 from modal_app import _is_authorized
 from track_jobs import (
+    configured_search_targets,
     description_from_guest_html,
     evaluate_job,
     filter_new_sheet_rows,
@@ -147,14 +148,27 @@ def test_ai_automation_ranks_above_marketing_automation():
     assert ai_result["score"] > marketing_result["score"]
 
 
-def test_first_two_search_lanes_are_ai_first():
-    assert all("AI" in query for query in CONFIG["search_queries"][:2])
-    assert "marketing automation" in CONFIG["search_queries"][2].casefold()
+def test_search_lanes_cover_ai_marketing_email_and_pipeline_automation():
+    assert "AI" in CONFIG["search_queries"][0]
+    secondary_lane = CONFIG["search_queries"][1].casefold()
+    assert "marketing automation" in secondary_lane
+    assert "email marketing automation" in secondary_lane
+    assert "pipeline automation" in secondary_lane
+
+
+def test_every_expertise_lane_runs_in_every_target_location():
+    targets = configured_search_targets(CONFIG)
+    assert len(targets) == len(CONFIG["search_queries"]) * len(CONFIG["locations"])
+    assert {location for _, location in targets} == {
+        "United States", "Europe", "Sofia, Bulgaria", "Australia",
+    }
+    assert all(CONFIG["work_type"] == "remote" for _ in targets)
 
 
 @pytest.mark.parametrize(
     "description",
     [
+        "Hybrid",
         "Remote role with a hybrid schedule and two office days each week.",
         "Listed as remote, but this is an on-site position.",
         "Remote contract. You must visit the office once per quarter.",
@@ -186,7 +200,6 @@ def test_accepts_remote_roles_without_physical_presence(description):
 @pytest.mark.parametrize(
     "description",
     [
-        "Build secure tools for hybrid workers in a fully remote role.",
         "Remote contract. The benefits page also lists in-office snacks.",
         "Remote position supporting customers with office-based employees.",
     ],
@@ -228,6 +241,38 @@ def test_does_not_reject_compatible_authorization_language(description):
     assert result["accepted"], result
 
 
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Candidates must be based in the United States.",
+        "This remote role is only open to applicants located in the U.S.",
+        "This position is open to candidates located in the United States.",
+        "We are looking for a contractor based in the U.S.",
+        "U.S.-based candidates only.",
+        "This is remote work, USA only.",
+        "Remote position within the United States.",
+    ],
+)
+def test_rejects_jobs_restricted_to_us_based_candidates(description):
+    result = evaluate_job("AI Automation Specialist", description, CONFIG)
+    assert not result["accepted"], result
+    assert result["rejection_reason"].startswith("location incompatible:")
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Applicants must be authorized to work in the U.S. without sponsorship.",
+        "No current or future visa sponsorship is available.",
+        "Candidates are required to be a U.S. citizen or permanent resident.",
+    ],
+)
+def test_rejects_additional_us_work_rights_wording(description):
+    result = evaluate_job("AI Automation Specialist", description, CONFIG)
+    assert not result["accepted"], result
+    assert result["rejection_reason"].startswith("work authorization incompatible:")
+
+
 def test_config_validation_requires_remote_only_search():
     unsafe = json.loads(json.dumps(CONFIG))
     unsafe["work_type"] = "remote,hybrid"
@@ -263,8 +308,9 @@ def test_negative_opportunity_signals_reduce_score():
         "Requires 10+ years experience.",
         CONFIG,
     )
-    assert restricted["score"] < normal["score"]
-    assert "restricted remote geography" in restricted["negative_signals"]
+    assert normal["accepted"]
+    assert not restricted["accepted"]
+    assert restricted["rejection_reason"].startswith("location incompatible:")
 
 
 def test_candidate_profile_contract_and_regexes_validate():

@@ -1,15 +1,20 @@
 {
   "search_queries": [
-    "\"AI automation engineer\" OR \"AI automation specialist\" OR \"AI & automation\" OR \"automation & AI\" OR \"workflow automation engineer\" OR \"n8n developer\" OR \"AI transformation engineer\"",
-    "\"AI agent engineer\" OR \"AI agent builder\" OR \"AI workflow builder\" OR \"agentic automation\" OR \"AI solutions engineer\" OR \"AI implementation specialist\" OR \"AI integration engineer\" OR \"AI operations specialist\" OR \"AI enablement consultant\"",
-    "\"marketing automation specialist\" OR \"CRM automation\" OR \"CRM integration specialist\" OR \"lifecycle automation\" OR \"journey builder\" OR \"sales automation specialist\" OR \"RevOps automation\" OR \"GTM automation\" OR \"marketing operations specialist\""
+    "\"AI automation engineer\" OR \"AI automation specialist\" OR \"AI & automation\" OR \"automation & AI\" OR \"workflow automation engineer\" OR \"n8n developer\" OR \"AI transformation engineer\" OR \"AI agent engineer\" OR \"AI agent builder\" OR \"AI workflow builder\" OR \"agentic automation\" OR \"AI solutions engineer\" OR \"AI implementation specialist\" OR \"AI integration engineer\" OR \"AI operations specialist\" OR \"AI enablement consultant\"",
+    "\"marketing automation specialist\" OR \"email marketing automation\" OR \"email automation specialist\" OR \"CRM automation\" OR \"CRM integration specialist\" OR \"lifecycle automation\" OR \"journey builder\" OR \"pipeline automation\" OR \"sales pipeline automation\" OR \"sales automation specialist\" OR \"RevOps automation\" OR \"GTM automation\" OR \"marketing operations specialist\""
+  ],
+  "locations": [
+    "United States",
+    "Europe",
+    "Sofia, Bulgaria",
+    "Australia"
   ],
   "work_type": "remote",
   "remote_policy": {
     "required": true,
     "hard_exclude_rules": [
-      {"pattern": "\\bhybrid(?:\\s*/\\s*remote|[- ](?:work|role|position|schedule|arrangement|model))\\b", "label": "hybrid work"},
-      {"pattern": "\\bon[- ]?site(?:[- ](?:work|role|position|requirement|presence))?\\b", "label": "on-site work"},
+      {"pattern": "\\bhybrid\\b", "label": "hybrid work"},
+      {"pattern": "\\bon(?:\\s+|[- ])?site\\b", "label": "on-site work"},
       {"pattern": "\\b(?:in[- ]office|office[- ]based)[- ](?:work|role|position|requirement|presence|schedule|days?|expectation)\\b", "label": "in-office work"},
       {"pattern": "\\b(?:work|working|report|reporting|come|coming) (?:from|in|at|to) (?:an? |the )?office\\b", "label": "office attendance"},
       {"pattern": "\\b\\d+\\s+days?\\s+(?:per|a|each)\\s+week\\s+(?:in|at)\\s+(?:an? |the )?office\\b", "label": "recurring office days"},
@@ -22,9 +27,26 @@
     "hard_exclude_rules": [
       {"pattern": "\\b(?:must|need to|required to|are required to)\\s+be\\s+(?:legally\\s+)?(?:authorized|eligible) to work (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "U.S. work authorization required"},
       {"pattern": "\\b(?:must|need to|required to|are required to)\\s+(?:have|possess)\\s+(?:valid\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\s+work\\s+(?:authorization|rights?|permit)\\b", "label": "U.S. work rights required"},
+      {"pattern": "\\b(?:must|need to|required to|are required to)\\s+(?:have|possess|maintain)\\b.{0,50}\\b(?:authorization|eligibility|right|permission) to work (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "U.S. work authorization required"},
+      {"pattern": "(?<!no )(?<!no existing )(?<!no valid )\\b(?:authorized|eligible) to work (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b.{0,80}\\bwithout (?:current or future )?(?:visa |employment )?sponsorship\\b", "label": "U.S. work authorization without sponsorship required"},
       {"pattern": "(?<!no )(?<!no existing )(?<!no valid )\\b(?:united states|u\\.?\\s*s\\.?|usa)\\s+work\\s+(?:authorization|rights?|permit)\\b.{0,40}\\b(?:(?:is|are|be)\\s+)?(?<!not )(?:required|mandatory)\\b", "label": "U.S. work rights required"},
       {"pattern": "\\b(?:visa|immigration|employment)\\s+sponsorship\\s+(?:is\\s+|will\\s+be\\s+)?(?:not available|not provided|unavailable)\\b", "label": "U.S. visa sponsorship unavailable"},
-      {"pattern": "\\b(?:cannot|can['’]t|do not|does not|will not|unable to)\\s+(?:provide|offer|support|sponsor)\\b.{0,40}\\b(?:visa|immigration|employment|sponsorship|work authorization)\\b", "label": "U.S. visa sponsorship unavailable"}
+      {"pattern": "\\b(?:cannot|can['’]t|do not|does not|will not|unable to|not able to)\\s+(?:provide|offer|support|sponsor)\\b.{0,80}\\b(?:visa|immigration|employment|sponsorship|work authorization)\\b", "label": "U.S. visa sponsorship unavailable"},
+      {"pattern": "\\bno (?:current or future )?(?:visa|immigration|employment) sponsorship\\b", "label": "U.S. visa sponsorship unavailable"},
+      {"pattern": "\\b(?:must|need to|required to|are required to)\\s+be (?:an? )?(?:u\\.?s\\.?|united states) (?:citizen|permanent resident|green card holder)\\b", "label": "U.S. citizenship or permanent residence required"}
+    ]
+  },
+  "location_eligibility_policy": {
+    "required": true,
+    "hard_exclude_rules": [
+      {"pattern": "\\b(?:must|need to|required to|are required to)\\s+(?:currently\\s+)?(?:be\\s+)?(?:located|based|resident|reside|live)\\s+(?:in|within)\\s+(?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "must be based in the U.S."},
+      {"pattern": "\\b(?:only|exclusively)\\s+(?:open|available)\\s+to\\b.{0,50}\\b(?:located|based|resident|residing|living)\\s+(?:in|within)\\s+(?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "only U.S.-based candidates accepted"},
+      {"pattern": "\\b(?:open|available) to (?:candidates?|applicants?|workers?) (?:currently )?(?:located|based|resident|residing|living) (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "open to U.S.-based candidates"},
+      {"pattern": "\\b(?:seeking|looking for) (?:an? )?(?:candidate|applicant|professional|contractor)\\b.{0,50}\\b(?:located|based|resident|residing|living) (?:in|within) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "seeking a U.S.-based candidate"},
+      {"pattern": "\\b(?:u\\.?s\\.?|united states|usa)[- ]based (?:candidates?|applicants?|workers?|residents?) only\\b", "label": "U.S.-based candidates only"},
+      {"pattern": "\\bonly (?:u\\.?s\\.?|united states|usa)[- ]based (?:candidates?|applicants?|workers?|residents?)\\b", "label": "U.S.-based candidates only"},
+      {"pattern": "\\b(?:remote|work from home)\\b.{0,40}\\b(?:u\\.?s\\.?|united states|usa) only\\b", "label": "remote restricted to the U.S."},
+      {"pattern": "\\bremote (?:role|position|work)?\\s*(?:within|across|in) (?:the\\s+)?(?:united states|u\\.?\\s*s\\.?|usa)\\b", "label": "remote restricted to the U.S."}
     ]
   },
   "job_type": "contract,part_time,temporary,other",
@@ -32,9 +54,9 @@
   "sort_by": "date",
   "max_pages": 1,
   "max_jobs_per_run": 10,
-  "inter_search_delay_min_seconds": 180,
-  "inter_search_delay_max_seconds": 300,
-  "candidate_fetch_multiplier": 5,
+  "inter_search_delay_min_seconds": 45,
+  "inter_search_delay_max_seconds": 75,
+  "candidate_fetch_multiplier": 2,
   "relevance": {
     "source_profile": "candidate_profile.yaml",
     "minimum_score": 8,

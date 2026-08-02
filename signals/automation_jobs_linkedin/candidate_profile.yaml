@@ -4,7 +4,7 @@
 # config.json and should be added only after explicit job-by-job feedback.
 
 schema_version: 1
-updated: "2026-07-30"
+updated: "2026-08-02"
 
 candidate:
   name: "Iliyan Ivanov"
@@ -42,8 +42,14 @@ job_preferences:
     and occasional mandatory physical-presence requirements.
   work_authorization_requirement: >-
     Reject U.S. roles that require existing U.S. work authorization or state
-    that visa or employment sponsorship is unavailable. The candidate does not
-    currently have U.S. work rights.
+    that visa or employment sponsorship is unavailable. Also reject roles that
+    require the candidate to be located or resident in the United States. The
+    candidate does not currently have U.S. work rights.
+  search_locations:
+    - "United States"
+    - "Europe"
+    - "Sofia, Bulgaria"
+    - "Australia"
   strongest_role_families:
     - "AI automation specialist"
     - "workflow automation engineer"
@@ -56,6 +62,8 @@ job_preferences:
     - "AI enablement consultant"
   secondary_role_families:
     - "marketing automation specialist"
+    - "email marketing automation specialist"
+    - "pipeline automation specialist"
     - "marketing operations specialist"
     - "sales automation specialist"
     - "revenue operations automation"
