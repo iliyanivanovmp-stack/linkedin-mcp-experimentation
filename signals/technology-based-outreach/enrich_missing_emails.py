@@ -5,7 +5,9 @@ import base64
 import hashlib
 import json
 import os
+import re
 import sys
+import unicodedata
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -29,6 +31,7 @@ ENRICHMENT_COLUMNS = [
     "lemlist_enrichment_id",
     "email_enriched_at",
     "apollo_enriched_at",
+    "reacher_enriched_at",
     "placeholder_email_generated_at",
 ]
 LINKEDIN_ONLY_CAMPAIGN = "Technology-based outreach - LinkedIn only"
@@ -109,6 +112,68 @@ class ApolloEnrichmentClient:
         if data.get("error"):
             raise RuntimeError(json.dumps(data)[:1000])
         return data.get("person") or {}
+
+
+class ReacherEmailFinderClient:
+    def __init__(self, endpoint: str, api_secret: str) -> None:
+        self.endpoint = endpoint.rstrip("/")
+        self.api_secret = api_secret
+
+    def check_email(self, email: str) -> dict[str, Any]:
+        request = urllib.request.Request(
+            f"{self.endpoint}/v0/check_email",
+            data=json.dumps({"to_email": email}).encode(),
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {self.api_secret}",
+                "Content-Type": "application/json",
+                "User-Agent": "linkedin-mcp-experimentation/1.0",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8", "ignore"))
+
+    def find_email(self, row: dict[str, str]) -> tuple[str, str, int]:
+        first_name = normalize_email_part(row.get("first_name", ""))
+        last_name = normalize_email_part(row.get("last_name", ""))
+        company_domain = row.get("company_domain", "").strip() or domain_from_url(row.get("company_website", ""))
+        company_domain = company_domain.casefold().removeprefix("www.").split("/", 1)[0]
+        if not first_name or not last_name or not company_domain:
+            return "", "missing_reacher_input", 0
+
+        checked = 0
+        for email in email_patterns(first_name, last_name, company_domain):
+            result = self.check_email(email)
+            checked += 1
+            reachability = str(result.get("is_reachable", "") or "").casefold()
+            if reachability == "safe":
+                return email, "reacher_safe", checked
+        return "", "reacher_not_found", checked
+
+
+def normalize_email_part(value: str) -> str:
+    ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]", "", ascii_value.casefold())
+
+
+def email_patterns(first_name: str, last_name: str, domain: str) -> list[str]:
+    candidates = [
+        f"{first_name}.{last_name}@{domain}",
+        f"{first_name}{last_name}@{domain}",
+        f"{first_name}_{last_name}@{domain}",
+        f"{first_name}@{domain}",
+        f"{last_name}@{domain}",
+        f"{first_name[0]}{last_name}@{domain}",
+        f"{first_name}{last_name[0]}@{domain}",
+        f"{first_name[0]}.{last_name}@{domain}",
+        f"{first_name}-{last_name}@{domain}",
+        f"{last_name}{first_name}@{domain}",
+        f"{last_name}.{first_name}@{domain}",
+        f"{first_name[0]}{last_name[0]}@{domain}",
+        f"{first_name[0]}_{last_name}@{domain}",
+        f"{last_name}{first_name[0]}@{domain}",
+    ]
+    return list(dict.fromkeys(candidates))
 
 
 def open_contacts_sheet(config: dict[str, Any], contacts_csv: Path | None) -> Sheet:
@@ -205,7 +270,20 @@ def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: boo
         summary["queued"] = len(candidates)
         return summary
 
-    results = client.request_find_email([payload for _, payload in candidates])
+    try:
+        results = client.request_find_email([payload for _, payload in candidates])
+    except Exception as exc:
+        error = str(exc)[:1000]
+        if not dry_run:
+            for row_number, _ in candidates:
+                sheet.update_row(row_number, {
+                    "status": "email_enrichment_failed",
+                    "email_status": "lemlist_enrichment_error",
+                    "lemlist_error": error,
+                })
+        summary["failed"] = len(candidates)
+        summary["error"] = error
+        return summary
     for (row_number, _), result in zip(candidates, results):
         if result.get("id"):
             sheet.update_row(row_number, {
@@ -254,6 +332,7 @@ def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: boo
         except Exception as exc:
             if not dry_run:
                 sheet.update_row(row.number, {
+                    "status": "apollo_enrichment_failed",
                     "email_status": "apollo_error",
                     "lemlist_error": str(exc)[:1000],
                 })
@@ -283,6 +362,71 @@ def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: boo
     return summary
 
 
+def reacher_enrichment(
+    sheet: Sheet,
+    client: ReacherEmailFinderClient,
+    dry_run: bool,
+    limit: int | None,
+) -> dict[str, Any]:
+    sheet.ensure_columns([*CONTACT_COLUMNS, *ENRICHMENT_COLUMNS])
+    summary = {
+        "dry_run": dry_run,
+        "mode": "reacher",
+        "rows_seen": 0,
+        "checked": 0,
+        "found": 0,
+        "not_found": 0,
+        "failed": 0,
+        "patterns_checked": 0,
+    }
+    eligible_statuses = {
+        "apollo_email_not_found",
+        "apollo_enrichment_failed",
+        "reacher_email_failed",
+    }
+    for row in sheet.rows():
+        if limit is not None and summary["checked"] >= limit:
+            break
+        summary["rows_seen"] += 1
+        data = row.data
+        if data.get("status", "").strip().casefold() not in eligible_statuses:
+            continue
+        if data.get("email", "").strip():
+            continue
+        summary["checked"] += 1
+        if dry_run:
+            continue
+        try:
+            email, email_status, patterns_checked = client.find_email(data)
+        except Exception as exc:
+            sheet.update_row(row.number, {
+                "status": "reacher_email_failed",
+                "email_status": "reacher_error",
+                "lemlist_error": str(exc)[:1000],
+            })
+            summary["failed"] += 1
+            continue
+        summary["patterns_checked"] += patterns_checked
+        if email:
+            sheet.update_row(row.number, {
+                "status": "",
+                "email": email,
+                "email_status": email_status,
+                "reacher_enriched_at": now_iso(),
+                "lemlist_error": "",
+            })
+            summary["found"] += 1
+        else:
+            sheet.update_row(row.number, {
+                "status": "reacher_email_not_found",
+                "email_status": email_status,
+                "reacher_enriched_at": now_iso(),
+                "lemlist_error": "",
+            })
+            summary["not_found"] += 1
+    return summary
+
+
 def finalize_linkedin_only(
     sheet: Sheet,
     dry_run: bool,
@@ -300,7 +444,7 @@ def finalize_linkedin_only(
     }
     # Lemlist failures must receive the Apollo fallback before a contact is
     # downgraded to LinkedIn-only routing.
-    eligible_statuses = {"email_not_found", "apollo_email_not_found"}
+    eligible_statuses = {"email_not_found", "reacher_email_not_found"}
     for row in sheet.rows():
         if limit is not None and summary["finalized"] >= limit:
             break
@@ -422,7 +566,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--contacts-csv", type=Path)
-    parser.add_argument("--mode", choices=["start", "poll", "apollo", "finalize-linkedin-only"], required=True)
+    parser.add_argument("--mode", choices=["start", "poll", "apollo", "reacher", "finalize-linkedin-only"], required=True)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int)
     args = parser.parse_args()
@@ -448,6 +592,17 @@ def main() -> None:
             if not api_key:
                 raise RuntimeError("Set APOLLO_API_KEY")
             result = apollo_enrichment(sheet, ApolloEnrichmentClient(api_key), args.dry_run, args.limit)
+        elif args.mode == "reacher":
+            api_secret = os.environ.get("REACHER_API_SECRET", "").strip()
+            if not api_secret:
+                raise RuntimeError("Set REACHER_API_SECRET")
+            endpoint = os.environ.get("REACHER_ENDPOINT", "https://cantabo.aiessentials.us").strip()
+            result = reacher_enrichment(
+                sheet,
+                ReacherEmailFinderClient(endpoint, api_secret),
+                args.dry_run,
+                args.limit,
+            )
         else:
             result = finalize_linkedin_only(
                 sheet,

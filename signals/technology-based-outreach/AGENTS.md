@@ -11,7 +11,9 @@ company row onward.
 2. `prepare_context.py` turns detected technologies into a short opener,
    three automation opportunities, and an outreach angle.
 3. `extract_contacts.py` finds up to three decision-makers per company.
-4. `enrich_missing_emails.py` uses Lemlist and Apollo for missing emails.
+4. `enrich_missing_emails.py` uses Lemlist, Apollo, and Reacher for missing
+   emails, in that order. A provider failure must mark the affected rows and
+   continue to the next provider instead of aborting the pipeline.
 5. `feed_lemlist.py` routes email-ready and LinkedIn-only contacts to separate
    dedicated campaigns with technology-specific custom variables.
 
@@ -27,6 +29,7 @@ Both sourcing modes use the same workbook and campaigns. The combined cap is
   (`cam_rKrkfj9P3hihTw9oF`)
 - Modal app: `technology-based-outreach`
 - Modal secret: `technology-outreach-secrets`
+- Reacher Modal secret: `technology-outreach-reacher`
 - n8n workflow: `Technology-Based Outreach — Daily`
   (`hrG8M9V0lJhCAhu8`), active daily at 08:15
 

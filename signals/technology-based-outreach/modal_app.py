@@ -26,7 +26,10 @@ image = (
     )
 )
 
-secrets = [modal.Secret.from_name("technology-outreach-secrets")]
+secrets = [
+    modal.Secret.from_name("technology-outreach-secrets"),
+    modal.Secret.from_name("technology-outreach-reacher"),
+]
 
 
 def _run(*extra_args: str) -> dict:

@@ -59,6 +59,7 @@ def main() -> None:
             ("email_enrichment_start", [sys.executable, str(TECH_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "start", *dry, *contact_limit]),
             ("email_enrichment_poll", [sys.executable, str(TECH_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "poll", *dry, *contact_limit]),
             ("apollo_email_fallback", [sys.executable, str(TECH_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "apollo", *dry, *contact_limit]),
+            ("reacher_email_fallback", [sys.executable, str(TECH_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "reacher", *dry, *contact_limit]),
             ("finalize_linkedin_only", [sys.executable, str(TECH_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "finalize-linkedin-only", *dry, *contact_limit]),
         ])
     commands.append(("feed_lemlist", [

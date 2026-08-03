@@ -7,10 +7,13 @@ from pathlib import Path
 from enrich_missing_emails import (
     ApolloEnrichmentClient,
     LemlistEnrichmentClient,
+    ReacherEmailFinderClient,
+    email_patterns,
     finalize_linkedin_only,
     placeholder_email,
     apollo_enrichment,
     poll_enrichment,
+    reacher_enrichment,
     start_enrichment,
 )
 from extract_contacts import CsvSheet
@@ -38,6 +41,19 @@ class FakeApolloClient(ApolloEnrichmentClient):
 
     def match_person(self, row):
         return self.people.get(row.get("person_linkedin_url", ""), {})
+
+
+class FailingLemlistClient(FakeClient):
+    def request_find_email(self, rows):
+        raise RuntimeError("Lemlist credits unavailable")
+
+
+class FakeReacherClient(ReacherEmailFinderClient):
+    def __init__(self) -> None:
+        self.results = {}
+
+    def find_email(self, row):
+        return self.results.get(row.get("person_linkedin_url", ""), ("", "reacher_not_found", 14))
 
 
 class EnrichMissingEmailsTests(unittest.TestCase):
@@ -77,6 +93,20 @@ class EnrichMissingEmailsTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8-sig")
             self.assertIn("ada@example.com", text)
             self.assertIn(",found,", text)
+
+    def test_lemlist_provider_error_marks_rows_for_apollo_and_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "contacts.csv"
+            path.write_text(
+                "status,person_linkedin_url,company_domain,first_name,last_name,company_name,email,email_status,lemlist_error\n"
+                "needs_email,https://linkedin.com/in/ada,example.com,Ada,Lovelace,Example,,,\n",
+                encoding="utf-8",
+            )
+            result = start_enrichment(CsvSheet(path), FailingLemlistClient(), dry_run=False, limit=None)
+            self.assertEqual(result["failed"], 1)
+            text = path.read_text(encoding="utf-8-sig")
+            self.assertIn("email_enrichment_failed", text)
+            self.assertIn("lemlist_enrichment_error", text)
 
     def test_apollo_fallback_sets_email_and_clears_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,12 +158,33 @@ class EnrichMissingEmailsTests(unittest.TestCase):
             self.assertEqual(result["finalized"], 0)
             self.assertNotIn("@technology-outreach", path.read_text(encoding="utf-8-sig"))
 
+    def test_reacher_fallback_sets_safe_email_after_apollo_miss(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "contacts.csv"
+            path.write_text(
+                "status,email,email_status,person_linkedin_url,first_name,last_name,company_domain\n"
+                "apollo_email_not_found,,,https://linkedin.com/in/ada,Ada,Lovelace,example.com\n",
+                encoding="utf-8",
+            )
+            client = FakeReacherClient()
+            client.results["https://linkedin.com/in/ada"] = ("ada@example.com", "reacher_safe", 1)
+            result = reacher_enrichment(CsvSheet(path), client, dry_run=False, limit=None)
+            self.assertEqual(result["found"], 1)
+            text = path.read_text(encoding="utf-8-sig")
+            self.assertIn("ada@example.com", text)
+            self.assertIn("reacher_safe", text)
+
+    def test_email_patterns_are_deduplicated_and_normalized(self) -> None:
+        patterns = email_patterns("ada", "lovelace", "example.com")
+        self.assertEqual(patterns[0], "ada.lovelace@example.com")
+        self.assertEqual(len(patterns), len(set(patterns)))
+
     def test_finalize_linkedin_only_sets_placeholder_and_campaign(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "contacts.csv"
             path.write_text(
                 "status,email,email_status,person_linkedin_url,lemlist_campaign\n"
-                "apollo_email_not_found,,,https://linkedin.com/in/ada,\n",
+                "reacher_email_not_found,,,https://linkedin.com/in/ada,\n",
                 encoding="utf-8",
             )
             sheet = CsvSheet(path)
@@ -149,7 +200,7 @@ class EnrichMissingEmailsTests(unittest.TestCase):
             path = Path(tmp) / "contacts.csv"
             path.write_text(
                 "status,email,email_status,person_linkedin_url,lemlist_campaign\n"
-                "email_not_found,,,https://linkedin.com/in/grace,\n",
+                "reacher_email_not_found,,,https://linkedin.com/in/grace,\n",
                 encoding="utf-8",
             )
             sheet = CsvSheet(path)
