@@ -12,6 +12,7 @@ from extract_contacts import (
     CsvSheet,
     StaticDecisionMakerFinder,
     company_payload,
+    contact_row,
     extract_contacts,
     lemlist_contact,
     qualified_company,
@@ -62,6 +63,25 @@ class ExtractContactsTests(unittest.TestCase):
         payload = company_payload(row)
         self.assertEqual(payload["company_name"], "Example")
         self.assertEqual(payload["company_domain"], "example.com")
+
+    def test_message_context_reaches_contact_rows(self) -> None:
+        row = contact_row(
+            {
+                "company_name": "Acme",
+                "company_domain": "acme.example",
+                "source_url": "https://acme.example",
+                "technologies": "HubSpot, Slack",
+                "pain_observation": "Pain observation",
+                "fabricated_result": "Result example",
+                "contrarian_hook": "Contrarian hook",
+            },
+            Contact("Ada Lovelace", "https://linkedin.com/in/ada", email="ada@acme.example"),
+            "Technology-based outreach",
+            "2026-08-04T00:00:00Z",
+        )
+        self.assertEqual(row["pain_observation"], "Pain observation")
+        self.assertEqual(row["fabricated_result"], "Result example")
+        self.assertEqual(row["contrarian_hook"], "Contrarian hook")
 
     def test_extracts_three_contacts_to_blank_status_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

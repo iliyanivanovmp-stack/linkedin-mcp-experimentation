@@ -8,6 +8,7 @@ from enrich_missing_emails import (
     ApolloEnrichmentClient,
     LemlistEnrichmentClient,
     ReacherEmailFinderClient,
+    apollo_match_payload,
     email_patterns,
     finalize_linkedin_only,
     placeholder_email,
@@ -57,6 +58,20 @@ class FakeReacherClient(ReacherEmailFinderClient):
 
 
 class EnrichMissingEmailsTests(unittest.TestCase):
+    def test_apollo_payload_uses_current_domain_field_and_all_identifiers(self) -> None:
+        payload = apollo_match_payload({
+            "person_linkedin_url": "https://linkedin.com/in/ada",
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "company_name": "Example",
+            "company_domain": "example.com",
+        })
+        self.assertEqual(payload["domain"], "example.com")
+        self.assertNotIn("organization_domain", payload)
+        self.assertEqual(payload["linkedin_url"], "https://linkedin.com/in/ada")
+        self.assertEqual(payload["first_name"], "Ada")
+        self.assertEqual(payload["last_name"], "Lovelace")
+
     def test_start_queues_needs_email_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "contacts.csv"

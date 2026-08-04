@@ -14,6 +14,13 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from prepare_context import (
+    contrarian_hook_text,
+    fabricated_result_text,
+    pain_observation_text,
+    parse_tools,
+)
+
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_CONFIG = Path(__file__).with_name("config.json")
@@ -93,6 +100,12 @@ DEFAULT_LEMLIST_VARIABLES = {
     "icebreaker",
     "jobTitle",
     "timezone",
+}
+
+DERIVED_CONTEXT_FIELDS = {
+    "painObservation": ("pain_observation", pain_observation_text),
+    "fabricatedResult": ("fabricated_result", fabricated_result_text),
+    "contrarianHook": ("contrarian_hook", contrarian_hook_text),
 }
 
 
@@ -452,12 +465,28 @@ def custom_variables(
     row: dict[str, str],
     aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, str]:
+    row = with_derived_context(row)
     variables = {}
     for variable_name, field_aliases in (aliases or CUSTOM_VARIABLE_ALIASES).items():
         value = first_value(row, field_aliases)
         if value:
             variables[variable_name] = value
     return variables
+
+
+def with_derived_context(row: dict[str, str]) -> dict[str, str]:
+    resolved = dict(row)
+    tools = parse_tools(first_value(row, ["technologies", "selected_outreach_tools"]))
+    if not tools:
+        return resolved
+    for _, (field_name, generator) in DERIVED_CONTEXT_FIELDS.items():
+        if not str(resolved.get(field_name, "") or "").strip():
+            resolved[field_name] = generator(tools)
+    return resolved
+
+
+def required_custom_variables(source: dict[str, Any] | None = None) -> list[str]:
+    return [str(name) for name in (source or {}).get("required_custom_variables", [])]
 
 
 def custom_variables_for_lemlist(
@@ -483,7 +512,9 @@ def build_payload(
     row: dict[str, str],
     default_timezone: str,
     aliases: dict[str, list[str]] | None = None,
+    required_variables: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
+    row = with_derived_context(row)
     first_name, last_name = split_name(row)
     email = first_value(row, FIELD_ALIASES["email"])
     linkedin = first_value(row, FIELD_ALIASES["linkedin_url"])
@@ -519,7 +550,11 @@ def build_payload(
         "timezone": first_value(row, FIELD_ALIASES["timezone"]) or default_timezone,
         "icebreaker": icebreaker,
     }
-    payload.update(custom_variables(row, aliases))
+    variables = custom_variables(row, aliases)
+    payload.update(variables)
+    for variable_name in required_variables or []:
+        if not str(variables.get(variable_name, "") or "").strip():
+            missing.append(f"custom variable {variable_name}")
     return {key: value for key, value in payload.items() if value}, missing
 
 
@@ -616,6 +651,7 @@ def process(
     dry_run: bool,
     limit: int | None,
     source_keys: set[str] | None = None,
+    sync_existing_variables: bool = False,
 ) -> dict[str, Any]:
     load_env_file()
     api_key = os.environ.get(str(config.get("lemlist_api_key_env", "LEMLIST_API_KEY")), "")
@@ -633,9 +669,14 @@ def process(
         "plugged": 0,
         "failed": 0,
         "duplicates": 0,
+        "synced_variables": 0,
     }
 
-    for source in config["sources"]:
+    sources = sorted(
+        config["sources"],
+        key=lambda item: int(item.get("priority", 100)),
+    )
+    for source in sources:
         if source_keys and source["key"] not in source_keys:
             continue
         campaign = config["campaigns"][source["campaign_key"]]
@@ -653,11 +694,16 @@ def process(
             "plugged": 0,
             "failed": 0,
             "duplicates": 0,
+            "sync_candidates": 0,
+            "synced_variables": 0,
+            "sync_failed": 0,
         }
         try:
             sheet = open_sheet(source)
             if not dry_run:
                 sheet.ensure_columns(OUTPUT_COLUMNS)
+                if sync_existing_variables:
+                    sheet.ensure_columns([field for field, _ in DERIVED_CONTEXT_FIELDS.values()])
             rows = sheet.rows()
             source_result["rows_seen"] = len(rows)
         except Exception as exc:
@@ -673,6 +719,55 @@ def process(
         source_result["plugged_today"] = already_plugged_today
         source_result["daily_remaining_before_run"] = daily_remaining
         source_result["daily_limit_campaigns"] = sorted(daily_campaign_names)
+
+        if sync_existing_variables:
+            required_variables = required_custom_variables(source)
+            for row in rows:
+                if limit is not None and source_result["sync_candidates"] >= limit:
+                    break
+                if row.data.get("status", "").strip().casefold() != "plugged":
+                    continue
+                if not row_matches_campaign(row.data, campaign_name):
+                    continue
+                source_result["sync_candidates"] += 1
+                lead_id = str(row.data.get("lemlist_lead_id", "") or "").strip()
+                resolved_row = with_derived_context(row.data)
+                _, missing = build_payload(
+                    resolved_row,
+                    timezone_name,
+                    aliases,
+                    required_variables,
+                )
+                if not lead_id:
+                    missing.append("Lemlist lead ID")
+                if missing or (client is None and not dry_run):
+                    source_result["sync_failed"] += 1
+                    summary["failed"] += 1
+                    if not dry_run:
+                        error = ", ".join(missing) if missing else "Missing LEMLIST_API_KEY"
+                        sheet.update_row(row.number, {"lemlist_error": f"Variable sync failed: {error}"})
+                    continue
+                try:
+                    if not dry_run:
+                        client.add_custom_variables(  # type: ignore[union-attr]
+                            lead_id,
+                            custom_variables_for_lemlist(resolved_row, aliases),
+                        )
+                        derived_updates = {
+                            field_name: resolved_row.get(field_name, "")
+                            for field_name, _ in DERIVED_CONTEXT_FIELDS.values()
+                            if resolved_row.get(field_name, "")
+                        }
+                        sheet.update_row(row.number, {**derived_updates, "lemlist_error": ""})
+                    source_result["synced_variables"] += 1
+                    summary["synced_variables"] += 1
+                except Exception as exc:
+                    source_result["sync_failed"] += 1
+                    summary["failed"] += 1
+                    if not dry_run:
+                        sheet.update_row(row.number, {"lemlist_error": f"Variable sync failed: {read_error(exc)}"[:1000]})
+            summary["sources"].append(source_result)
+            continue
 
         existing_plugged = {
             (campaign_name, identity)
@@ -699,6 +794,7 @@ def process(
                 row.data,
                 timezone_name,
                 aliases,
+                required_custom_variables(source),
             )
             identity = lead_identity(row.data)
             dedupe_key = (campaign_name, identity)
@@ -817,6 +913,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--source", action="append", dest="sources")
+    parser.add_argument("--sync-existing-variables", action="store_true")
     args = parser.parse_args()
     try:
         result = process(
@@ -824,6 +921,7 @@ def main() -> None:
             args.dry_run,
             args.limit,
             source_keys=set(args.sources or []),
+            sync_existing_variables=args.sync_existing_variables,
         )
     except Exception as exc:
         print(json.dumps({"status": "error", "error": read_error(exc)}, indent=2))

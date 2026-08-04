@@ -53,6 +53,9 @@ CONTACT_COLUMNS = [
     "automation_opportunity_2",
     "automation_opportunity_3",
     "outreach_angle",
+    "pain_observation",
+    "fabricated_result",
+    "contrarian_hook",
     "audit_company_key",
     "contact_source",
     "email_status",
@@ -91,6 +94,9 @@ COMPANY_ALIASES = {
     "automation_opportunity_2": ["automation_opportunity_2", "automation_example_2"],
     "automation_opportunity_3": ["automation_opportunity_3", "automation_example_3"],
     "outreach_angle": ["outreach_angle", "solution_angle", "outreach_reason"],
+    "pain_observation": ["pain_observation"],
+    "fabricated_result": ["fabricated_result"],
+    "contrarian_hook": ["contrarian_hook"],
     "status": ["opportunity_status", "status", "audit_status"],
     "signal_found": ["signal_found"],
     "do_not_sequence": ["do_not_sequence", "do_not_contact"],
@@ -635,6 +641,9 @@ def company_payload(row: dict[str, str]) -> dict[str, str]:
         "automation_opportunity_2": first_value(row, COMPANY_ALIASES["automation_opportunity_2"]),
         "automation_opportunity_3": first_value(row, COMPANY_ALIASES["automation_opportunity_3"]),
         "outreach_angle": first_value(row, COMPANY_ALIASES["outreach_angle"]),
+        "pain_observation": first_value(row, COMPANY_ALIASES["pain_observation"]),
+        "fabricated_result": first_value(row, COMPANY_ALIASES["fabricated_result"]),
+        "contrarian_hook": first_value(row, COMPANY_ALIASES["contrarian_hook"]),
     }
 
 
@@ -857,6 +866,9 @@ def contact_row(
         "automation_opportunity_2": company.get("automation_opportunity_2", ""),
         "automation_opportunity_3": company.get("automation_opportunity_3", ""),
         "outreach_angle": company.get("outreach_angle", ""),
+        "pain_observation": company.get("pain_observation", ""),
+        "fabricated_result": company.get("fabricated_result", ""),
+        "contrarian_hook": company.get("contrarian_hook", ""),
         "icebreaker": company.get("icebreaker", "") or (
             f"Saw an automation opportunity across {company.get('technologies', 'your technology stack')} "
             f"at {company.get('company_name', 'your company')}: {reason}"

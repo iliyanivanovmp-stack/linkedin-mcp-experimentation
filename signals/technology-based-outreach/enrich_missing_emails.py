@@ -9,6 +9,7 @@ import re
 import sys
 import unicodedata
 import urllib.parse
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -33,6 +34,9 @@ ENRICHMENT_COLUMNS = [
     "apollo_enriched_at",
     "reacher_enriched_at",
     "placeholder_email_generated_at",
+    "lemlist_enrichment_error",
+    "apollo_enrichment_error",
+    "reacher_enrichment_error",
 ]
 LINKEDIN_ONLY_CAMPAIGN = "Technology-based outreach - LinkedIn only"
 PLACEHOLDER_EMAIL_DOMAIN = "technology-outreach-linkedin-only.invalid"
@@ -74,27 +78,8 @@ class ApolloEnrichmentClient:
         self.api_key = api_key
 
     def match_person(self, row: dict[str, str]) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "reveal_personal_emails": False,
-            "reveal_phone_number": False,
-        }
-        linkedin = row.get("person_linkedin_url", "").strip()
-        if linkedin:
-            payload["linkedin_url"] = linkedin
-        else:
-            first_name = row.get("first_name", "").strip()
-            last_name = row.get("last_name", "").strip()
-            company_domain = row.get("company_domain", "").strip() or domain_from_url(row.get("company_website", ""))
-            company_name = row.get("company_name", "").strip()
-            if first_name:
-                payload["first_name"] = first_name
-            if last_name:
-                payload["last_name"] = last_name
-            if company_domain:
-                payload["organization_domain"] = company_domain
-            if company_name:
-                payload["organization_name"] = company_name
-        if not (payload.get("linkedin_url") or (payload.get("first_name") and payload.get("last_name") and (payload.get("organization_domain") or payload.get("organization_name")))):
+        payload = apollo_match_payload(row)
+        if not payload:
             return {}
         request = urllib.request.Request(
             "https://api.apollo.io/api/v1/people/match",
@@ -112,6 +97,31 @@ class ApolloEnrichmentClient:
         if data.get("error"):
             raise RuntimeError(json.dumps(data)[:1000])
         return data.get("person") or {}
+
+
+def apollo_match_payload(row: dict[str, str]) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "reveal_personal_emails": False,
+        "reveal_phone_number": False,
+    }
+    linkedin = row.get("person_linkedin_url", "").strip()
+    first_name = row.get("first_name", "").strip()
+    last_name = row.get("last_name", "").strip()
+    company_domain = row.get("company_domain", "").strip() or domain_from_url(row.get("company_website", ""))
+    company_name = row.get("company_name", "").strip()
+    if linkedin:
+        payload["linkedin_url"] = linkedin
+    if first_name:
+        payload["first_name"] = first_name
+    if last_name:
+        payload["last_name"] = last_name
+    if company_domain:
+        payload["domain"] = company_domain
+    if company_name:
+        payload["organization_name"] = company_name
+    if not (payload.get("linkedin_url") or (payload.get("first_name") and payload.get("last_name") and (payload.get("domain") or payload.get("organization_name")))):
+        return {}
+    return payload
 
 
 class ReacherEmailFinderClient:
@@ -154,6 +164,19 @@ class ReacherEmailFinderClient:
 def normalize_email_part(value: str) -> str:
     ascii_value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]", "", ascii_value.casefold())
+
+
+def provider_error(exc: Exception) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        try:
+            body = exc.read().decode("utf-8", "ignore").strip()
+        except Exception:
+            body = ""
+        detail = f"HTTP {exc.code} {exc.reason}"
+        if body:
+            detail = f"{detail}: {body}"
+        return detail[:1000]
+    return str(exc)[:1000]
 
 
 def email_patterns(first_name: str, last_name: str, domain: str) -> list[str]:
@@ -273,13 +296,14 @@ def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: boo
     try:
         results = client.request_find_email([payload for _, payload in candidates])
     except Exception as exc:
-        error = str(exc)[:1000]
+        error = provider_error(exc)
         if not dry_run:
             for row_number, _ in candidates:
                 sheet.update_row(row_number, {
                     "status": "email_enrichment_failed",
                     "email_status": "lemlist_enrichment_error",
                     "lemlist_error": error,
+                    "lemlist_enrichment_error": error,
                 })
         summary["failed"] = len(candidates)
         summary["error"] = error
@@ -291,6 +315,7 @@ def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: boo
                 "email_status": "submitted_to_lemlist",
                 "lemlist_enrichment_id": str(result["id"]),
                 "lemlist_error": "",
+                "lemlist_enrichment_error": "",
             })
             summary["queued"] += 1
         else:
@@ -298,6 +323,7 @@ def start_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: boo
                 "status": "email_enrichment_failed",
                 "email_status": str(result.get("error", "unknown_error")),
                 "lemlist_error": json.dumps(result)[:1000],
+                "lemlist_enrichment_error": json.dumps(result)[:1000],
             })
             summary["failed"] += 1
     return summary
@@ -334,7 +360,7 @@ def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: boo
                 sheet.update_row(row.number, {
                     "status": "apollo_enrichment_failed",
                     "email_status": "apollo_error",
-                    "lemlist_error": str(exc)[:1000],
+                    "apollo_enrichment_error": provider_error(exc),
                 })
             summary["failed"] += 1
             continue
@@ -348,6 +374,7 @@ def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: boo
                     "email_status": email_status or "apollo_found",
                     "apollo_enriched_at": now_iso(),
                     "lemlist_error": "",
+                    "apollo_enrichment_error": "",
                 })
             summary["found"] += 1
         else:
@@ -357,6 +384,7 @@ def apollo_enrichment(sheet: Sheet, client: ApolloEnrichmentClient, dry_run: boo
                     "email_status": email_status or "apollo_not_found",
                     "apollo_enriched_at": now_iso(),
                     "lemlist_error": "",
+                    "apollo_enrichment_error": "",
                 })
             summary["not_found"] += 1
     return summary
@@ -402,7 +430,7 @@ def reacher_enrichment(
             sheet.update_row(row.number, {
                 "status": "reacher_email_failed",
                 "email_status": "reacher_error",
-                "lemlist_error": str(exc)[:1000],
+                "reacher_enrichment_error": provider_error(exc),
             })
             summary["failed"] += 1
             continue
@@ -414,6 +442,7 @@ def reacher_enrichment(
                 "email_status": email_status,
                 "reacher_enriched_at": now_iso(),
                 "lemlist_error": "",
+                "reacher_enrichment_error": "",
             })
             summary["found"] += 1
         else:
@@ -422,6 +451,7 @@ def reacher_enrichment(
                 "email_status": email_status,
                 "reacher_enriched_at": now_iso(),
                 "lemlist_error": "",
+                "reacher_enrichment_error": "",
             })
             summary["not_found"] += 1
     return summary
@@ -467,7 +497,6 @@ def finalize_linkedin_only(
                 "email_status": "placeholder_linkedin_only",
                 "lemlist_campaign": campaign_name,
                 "placeholder_email_generated_at": now_iso(),
-                "lemlist_error": "",
             })
         summary["finalized"] += 1
     return summary
@@ -513,7 +542,11 @@ def poll_enrichment(sheet: Sheet, client: LemlistEnrichmentClient, dry_run: bool
             result = client.get_result(enrichment_id)
         except Exception as exc:
             if not dry_run:
-                sheet.update_row(row.number, {"lemlist_error": str(exc)[:1000]})
+                error = provider_error(exc)
+                sheet.update_row(row.number, {
+                    "lemlist_error": error,
+                    "lemlist_enrichment_error": error,
+                })
             summary["failed"] += 1
             continue
         status = str(result.get("enrichmentStatus", "") or "").casefold()

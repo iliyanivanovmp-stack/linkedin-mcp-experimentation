@@ -15,11 +15,21 @@
       "key": "technology",
       "campaign_key": "technology",
       "type": "google_sheet",
+      "priority": 1,
       "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
       "worksheet": "Contacts",
       "timezone": "Europe/Sofia",
       "daily_limit": 30,
       "daily_limit_group": "technology_outreach",
+      "required_custom_variables": [
+        "technologies",
+        "opener",
+        "automationOpportunity1",
+        "automationOpportunity2",
+        "automationOpportunity3",
+        "outreachAngle",
+        "contrarianHook"
+      ],
       "custom_variables": {
         "technologies": ["technologies", "selected_outreach_tools"],
         "opener": ["opener", "email_opener"],
@@ -40,11 +50,21 @@
       "key": "technology_linkedin_only",
       "campaign_key": "technology_linkedin_only",
       "type": "google_sheet",
+      "priority": 0,
       "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
       "worksheet": "Contacts",
       "timezone": "Europe/Sofia",
       "daily_limit": 30,
       "daily_limit_group": "technology_outreach",
+      "required_custom_variables": [
+        "technologies",
+        "opener",
+        "automationOpportunity1",
+        "automationOpportunity2",
+        "automationOpportunity3",
+        "outreachAngle",
+        "contrarianHook"
+      ],
       "custom_variables": {
         "technologies": ["technologies", "selected_outreach_tools"],
         "opener": ["opener", "email_opener"],

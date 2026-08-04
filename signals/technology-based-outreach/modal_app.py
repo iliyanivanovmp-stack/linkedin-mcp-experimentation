@@ -58,6 +58,37 @@ def _run(*extra_args: str) -> dict:
     }
 
 
+def _run_variable_sync(dry_run: bool) -> dict:
+    args = [
+        sys.executable,
+        "/root/workflow/feed_lemlist.py",
+        "--config",
+        "/root/workflow/feeder_config.json",
+        "--source",
+        "technology",
+        "--sync-existing-variables",
+    ]
+    if dry_run:
+        args.append("--dry-run")
+    process = subprocess.run(
+        args,
+        cwd="/root/workflow",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    try:
+        parsed = json.loads(process.stdout) if process.stdout.strip() else None
+    except json.JSONDecodeError:
+        parsed = process.stdout.strip()
+    return {
+        "ok": process.returncode == 0,
+        "returncode": process.returncode,
+        "result": parsed,
+        "stderr": process.stderr.strip(),
+    }
+
+
 @app.function(image=image, secrets=secrets, timeout=1800)
 def run_pipeline(dry_run: bool = True) -> dict:
     return _run("--dry-run") if dry_run else _run()
@@ -66,6 +97,11 @@ def run_pipeline(dry_run: bool = True) -> dict:
 @app.function(image=image, secrets=secrets, timeout=1800)
 def daily_cycle() -> dict:
     return _run()
+
+
+@app.function(image=image, secrets=secrets, timeout=1800)
+def sync_existing_variables(dry_run: bool = True) -> dict:
+    return _run_variable_sync(dry_run)
 
 
 @app.function(image=image, secrets=secrets, timeout=1800)
