@@ -68,6 +68,10 @@ image = (
 secrets = [
     modal.Secret.from_name("automation-jobs-linkedin-secrets"),
     modal.Secret.from_name("automation-jobs-linkedin-trigger"),
+    # Reuse the existing Apollo credential for exact-company domain recovery.
+    # The Automation Jobs secret remains authoritative for Google, Slack, and
+    # the target spreadsheet.
+    modal.Secret.from_name("pipeline-engine-hiring-outreach-secrets"),
 ]
 
 
@@ -103,6 +107,49 @@ def _run(reset_state: bool = False) -> dict:
         )
     finally:
         Path(creds_path).unlink(missing_ok=True)
+    try:
+        parsed: object = json.loads(process.stdout) if process.stdout.strip() else None
+    except json.JSONDecodeError:
+        parsed = process.stdout.strip()
+    return {
+        "ok": process.returncode == 0,
+        "returncode": process.returncode,
+        "result": parsed,
+        "stderr": process.stderr.strip(),
+    }
+
+
+def _backfill(dry_run: bool = True, limit: int | None = None) -> dict:
+    import base64
+    creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64", "")
+    if not creds_b64:
+        return {"ok": False, "returncode": 78, "result": None,
+                "stderr": "GOOGLE_CREDENTIALS_B64 is not configured"}
+    try:
+        creds_json = base64.b64decode(creds_b64, validate=True).decode("utf-8")
+        json.loads(creds_json)
+    except Exception as exc:
+        return {"ok": False, "returncode": 78, "result": None,
+                "stderr": f"GOOGLE_CREDENTIALS_B64 is invalid: {type(exc).__name__}"}
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as file:
+        file.write(creds_json)
+        credentials_path = file.name
+    command = [
+        LINKEDIN_PYTHON,
+        "/root/signal/backfill_enrichment.py",
+        "--credentials", credentials_path,
+    ]
+    if dry_run:
+        command.append("--dry-run")
+    if limit is not None:
+        command.extend(["--limit", str(limit)])
+    try:
+        process = subprocess.run(
+            command, cwd="/root/signal", env=os.environ.copy(),
+            text=True, capture_output=True, check=False,
+        )
+    finally:
+        Path(credentials_path).unlink(missing_ok=True)
     try:
         parsed: object = json.loads(process.stdout) if process.stdout.strip() else None
     except json.JSONDecodeError:
@@ -168,6 +215,26 @@ def run_once(reset_state: bool = False) -> dict:
     return result
 
 
+@app.function(
+    image=image,
+    secrets=secrets,
+    timeout=1800,
+    max_containers=1,
+)
+def backfill_sheet(dry_run: bool = True, limit: int | None = None) -> dict:
+    return _backfill(dry_run=dry_run, limit=limit)
+
+
 @app.local_entrypoint()
-def main(reset_state: bool = False) -> None:
-    print(json.dumps(run_once.remote(reset_state=reset_state), indent=2))
+def main(
+    reset_state: bool = False,
+    backfill: bool = False,
+    dry_run: bool = True,
+    limit: int | None = None,
+) -> None:
+    result = (
+        backfill_sheet.remote(dry_run=dry_run, limit=limit)
+        if backfill
+        else run_once.remote(reset_state=reset_state)
+    )
+    print(json.dumps(result, indent=2))

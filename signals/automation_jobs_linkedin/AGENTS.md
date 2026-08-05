@@ -119,6 +119,15 @@ Core columns: `detected_at`, `company_name`, `company_website`, `job_title`,
 `job_description`, `job_url`, `poster_linkedin_url`, `job_id`, `relevance_score`,
 and `relevance_signals`. Feedback columns are appended for `review_status`,
 `fit_rating`, `rejection_reason`, `applied`, `response`, `interview`, and `won`.
+Outreach enrichment columns are appended after all existing fields for
+`company_linkedin_url`, `company_domain`, structured compensation,
+`domain_source`, and `domain_status`. The first seven columns must never move,
+because the resume generator validates that prefix before processing rows.
+
+Use `backfill_enrichment.py` to reconcile historical rows. It retries the public
+company reference already attached to each job, then uses an exact-company
+Apollo lookup when a website is still unavailable. Ambiguous Apollo matches stay
+unresolved. The command is non-mutating with `--dry-run`.
 
 Older sheets may still have `short_description` as the column E header. The
 writer upgrades that legacy header to `job_description` before appending rows.
@@ -148,6 +157,10 @@ rates, and the most common rejection reasons.
 - `AUTOMATION_JOBS_SHEET_ID` — target spreadsheet ID
 - `SLACK_WEBHOOK_URL` — incoming webhook for run notifications
 - `TRIGGER_TOKEN` — required bearer token for the n8n HTTP trigger
+
+The Modal functions also attach `pipeline-engine-hiring-outreach-secrets` to
+reuse its existing `APOLLO_API_KEY` for exact-company domain recovery. Do not
+copy or rotate the Apollo credential into the Automation Jobs secret.
 
 `TRIGGER_TOKEN` is stored separately in the Modal secret
 `automation-jobs-linkedin-trigger`, so rotating it cannot overwrite the Google

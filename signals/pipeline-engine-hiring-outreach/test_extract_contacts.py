@@ -51,6 +51,24 @@ class ExtractContactsTests(unittest.TestCase):
         self.assertEqual(payload["company_name"], "Example")
         self.assertEqual(payload["company_domain"], "example.com")
 
+    def test_company_payload_preserves_automation_opening_variables(self) -> None:
+        payload = company_payload({
+            "company_name": "Acme",
+            "company_domain": "acme.com",
+            "opening_job_title": "AI Workflow Builder",
+            "opening_job_url": "https://example.com/jobs/1",
+            "opening_compensation": "$100,000 per year",
+            "opening_responsibilities": "Build AI agents and workflows.",
+            "desired_outcome": "Automate repeatable workflows",
+            "build_vs_hire_angle": "Build the system with less risk.",
+            "additional_openings": "AI Solutions Engineer",
+            "personalized_opener": "Saw Acme is hiring an AI Workflow Builder.",
+        })
+        self.assertEqual(payload["opening_job_title"], "AI Workflow Builder")
+        self.assertEqual(payload["opening_compensation"], "$100,000 per year")
+        self.assertEqual(payload["desired_outcome"], "Automate repeatable workflows")
+        self.assertIn("less risk", payload["build_vs_hire_angle"])
+
     def test_extracts_three_contacts_to_blank_status_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             companies = Path(tmp) / "companies.csv"

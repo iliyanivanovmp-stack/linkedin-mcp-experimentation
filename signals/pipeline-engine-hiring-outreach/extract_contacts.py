@@ -56,6 +56,14 @@ CONTACT_COLUMNS = [
     "hiring_opener",
     "hiring_automation_opportunity",
     "compensation_text",
+    "opening_job_title",
+    "opening_job_url",
+    "opening_compensation",
+    "opening_responsibilities",
+    "desired_outcome",
+    "build_vs_hire_angle",
+    "additional_openings",
+    "personalized_opener",
     "hiring_company_key",
     "contact_source",
     "email_status",
@@ -105,6 +113,14 @@ COMPANY_ALIASES = {
     "hiring_opener": ["hiring_opener", "opener", "icebreaker"],
     "hiring_automation_opportunity": ["hiring_automation_opportunity"],
     "compensation_text": ["compensation_text"],
+    "opening_job_title": ["opening_job_title", "hiring_job_title", "job_title"],
+    "opening_job_url": ["opening_job_url", "hiring_job_url", "job_url", "source_url"],
+    "opening_compensation": ["opening_compensation", "compensation_text"],
+    "opening_responsibilities": ["opening_responsibilities", "job_description"],
+    "desired_outcome": ["desired_outcome", "hiring_automation_opportunity"],
+    "build_vs_hire_angle": ["build_vs_hire_angle", "hiring_offer_angle", "offer_angle"],
+    "additional_openings": ["additional_openings"],
+    "personalized_opener": ["personalized_opener", "hiring_opener", "opener", "icebreaker"],
     "status": ["opportunity_status", "status", "audit_status"],
     "signal_found": ["signal_found"],
     "do_not_sequence": ["do_not_sequence", "do_not_contact"],
@@ -656,6 +672,14 @@ def company_payload(row: dict[str, str]) -> dict[str, str]:
         "hiring_opener": first_value(row, COMPANY_ALIASES["hiring_opener"]),
         "hiring_automation_opportunity": first_value(row, COMPANY_ALIASES["hiring_automation_opportunity"]),
         "compensation_text": first_value(row, COMPANY_ALIASES["compensation_text"]),
+        "opening_job_title": first_value(row, COMPANY_ALIASES["opening_job_title"]),
+        "opening_job_url": first_value(row, COMPANY_ALIASES["opening_job_url"]),
+        "opening_compensation": first_value(row, COMPANY_ALIASES["opening_compensation"]),
+        "opening_responsibilities": first_value(row, COMPANY_ALIASES["opening_responsibilities"]),
+        "desired_outcome": first_value(row, COMPANY_ALIASES["desired_outcome"]),
+        "build_vs_hire_angle": first_value(row, COMPANY_ALIASES["build_vs_hire_angle"]),
+        "additional_openings": first_value(row, COMPANY_ALIASES["additional_openings"]),
+        "personalized_opener": first_value(row, COMPANY_ALIASES["personalized_opener"]),
     }
 
 
@@ -947,6 +971,14 @@ def contact_row(
         "hiring_opener": company.get("hiring_opener", ""),
         "hiring_automation_opportunity": company.get("hiring_automation_opportunity", ""),
         "compensation_text": company.get("compensation_text", ""),
+        "opening_job_title": company.get("opening_job_title", ""),
+        "opening_job_url": company.get("opening_job_url", ""),
+        "opening_compensation": company.get("opening_compensation", ""),
+        "opening_responsibilities": company.get("opening_responsibilities", ""),
+        "desired_outcome": company.get("desired_outcome", ""),
+        "build_vs_hire_angle": company.get("build_vs_hire_angle", ""),
+        "additional_openings": company.get("additional_openings", ""),
+        "personalized_opener": company.get("personalized_opener", ""),
         "icebreaker": company.get("icebreaker", "") or company.get("hiring_opener", "") or (
             f"Noticed {company.get('company_name', 'your company')} is hiring a "
             f"{company.get('hiring_job_title', 'pipeline role')}."
@@ -1237,10 +1269,17 @@ def build_finder(config: dict[str, Any], static_contacts_csv: Path | None) -> De
             raise RuntimeError("Set INSTANTLY_API_KEY to use the configured Instantly fallback provider")
         fallback = InstantlyDecisionMakerFinder(instantly_key)
     elif fallback_name == "apollo":
-        apollo_key = apollo_api_key(str(provider_config.get("apollo_api_key_env", "APOLLO_API_KEY")))
+        apollo_env_name = str(provider_config.get("apollo_api_key_env", "APOLLO_API_KEY"))
+        apollo_key = (
+            os.environ.get(apollo_env_name, "").strip()
+            if provider_config.get("fallback_optional", False)
+            else apollo_api_key(apollo_env_name)
+        )
         if not apollo_key:
-            raise RuntimeError("Set APOLLO_API_KEY to use the configured Apollo fallback provider")
-        fallback = ApolloDecisionMakerFinder(apollo_key)
+            if not provider_config.get("fallback_optional", False):
+                raise RuntimeError("Set APOLLO_API_KEY to use the configured Apollo fallback provider")
+        else:
+            fallback = ApolloDecisionMakerFinder(apollo_key)
     elif fallback_name:
         raise RuntimeError(f"Unsupported fallback contact provider: {fallback_name}")
 

@@ -16,6 +16,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
+from enrichment import ApolloCompanyClient, ENRICHMENT_FIELDS, enrich_company, load_domain_overrides
+
 ROOT = Path(__file__).resolve().parent
 SIGNALS = ROOT.parent
 
@@ -41,6 +43,7 @@ SHEET_FIELDS = [
     "response",
     "interview",
     "won",
+    *ENRICHMENT_FIELDS,
 ]
 
 LEGACY_SHEET_FIELDS = [
@@ -1040,6 +1043,7 @@ async def collect_guest_api(config: dict[str, Any]) -> dict[str, Any]:
                 "job_url": details["job_url"],
                 "company_name": details["company_name"],
                 "company_website": company_website,
+                "company_linkedin_url": details.get("company_url", ""),
                 "job_title": job_title,
                 "text": "About the job\n\n" + details["description"],
                 "poster_linkedin_url": details.get("poster_linkedin_url", ""),
@@ -1170,6 +1174,7 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
                     "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
                     "company_name": company_name,
                     "company_website": website,
+                    "company_linkedin_url": company_linkedin_url,
                     "job_title": job_title,
                     "text": text,
                     "poster_linkedin_url": (
@@ -1227,6 +1232,9 @@ def main() -> None:
     profile = validate_config(config, args.config)
     source_profile = config.get("relevance", {}).get("source_profile", "")
     result = asyncio.run(collect(config))
+    apollo_key = os.environ.get("APOLLO_API_KEY", "").strip()
+    apollo = ApolloCompanyClient(apollo_key) if apollo_key else None
+    domain_overrides = load_domain_overrides()
 
     historical_seen = load_seen(args.state)
     comparison_seen = set() if args.reset_state else set(historical_seen)
@@ -1256,17 +1264,27 @@ def main() -> None:
             "negative_signals": job.get("negative_signals", []),
             "search_lane": job.get("search_lane"),
         })
+        description = job_description(job["text"])
+        enrichment = enrich_company(
+            job["company_name"],
+            job.get("company_website", ""),
+            description,
+            job.get("company_linkedin_url", ""),
+            apollo,
+            domain_overrides,
+        )
         rows.append({
             "detected_at": detected_at,
             "company_name": job["company_name"],
             "company_website": job["company_website"],
             "job_title": job["job_title"],
-            "job_description": job_description(job["text"]),
+            "job_description": description,
             "job_url": job["job_url"],
             "poster_linkedin_url": job.get("poster_linkedin_url", ""),
             "job_id": job_id,
             "relevance_score": job.get("relevance_score", 0),
             "relevance_signals": ", ".join(job.get("relevance_signals", [])),
+            **enrichment,
         })
         if len(rows) >= max_jobs:
             break
