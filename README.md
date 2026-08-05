@@ -4,6 +4,20 @@
 **Package:** `mcp-server-linkedin` (PyPI)  
 **Stack:** Python 3.12, FastMCP, Patchright (Chromium), uvx
 
+**Canonical local checkout:** `/Users/iliyanivanov/Desktop/Signals/signal-platform`
+
+The production signal systems are exposed as named entries in
+`/Users/iliyanivanov/Desktop/Signals` while remaining inside this single Git
+repository:
+
+- `Hiring Pipeline Roles` → `signals/pipeline-engine-hiring-outreach`
+- `Technology-Based Outreach` → `signals/technology-based-outreach`
+- `Automation Jobs LinkedIn` → `signals/automation_jobs_linkedin`
+
+The former `/Users/iliyanivanov/Desktop/linkedin-mcp-experimentation` path is a
+temporary compatibility symlink. New commands and documentation should use the
+canonical checkout above.
+
 ---
 
 ## Architecture

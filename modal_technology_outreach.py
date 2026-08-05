@@ -5,11 +5,13 @@ import hmac
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import modal
 
 
 app = modal.App("technology-based-outreach")
+SIGNALS_DIR = Path(__file__).resolve().parent / "signals"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -19,7 +21,7 @@ image = (
         "gspread>=6.2",
     )
     .add_local_dir(
-        "/Users/iliyanivanov/Desktop/linkedin-mcp-experimentation/signals",
+        str(SIGNALS_DIR),
         remote_path="/root/signals",
     )
 )
