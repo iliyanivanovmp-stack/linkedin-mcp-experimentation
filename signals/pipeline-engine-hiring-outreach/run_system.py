@@ -81,16 +81,39 @@ def post_json(url: str, payload: dict[str, object]) -> int:
         response.close()
 
 
+def post_slack_message(token: str, channel: str, text: str) -> str:
+    request = urllib.request.Request(
+        "https://slack.com/api/chat.postMessage",
+        data=json.dumps({"channel": channel, "text": text}).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "pipeline-engine-hiring-outreach/1.0",
+        },
+    )
+    response = urllib.request.urlopen(request, timeout=15)
+    try:
+        body = json.loads(response.read().decode("utf-8"))
+    finally:
+        response.close()
+    if not body.get("ok"):
+        raise RuntimeError(f"Slack API error: {body.get('error', 'unknown_error')}")
+    return str(body.get("ts", "ok"))
+
+
 def slack_message(payload: dict[str, object]) -> str:
     status = str(payload.get("status", "error"))
+    dry_run = bool(payload.get("dry_run"))
     metrics = payload.get("metrics") or {}
     if not isinstance(metrics, dict):
         metrics = {}
-    heading = (
-        ":white_check_mark: *Pipeline Engine Hiring Outreach completed*"
-        if status == "success"
-        else ":rotating_light: *Pipeline Engine Hiring Outreach failed*"
-    )
+    if status == "success" and dry_run:
+        heading = ":test_tube: *Pipeline Engine Hiring Outreach dry run completed*"
+    elif status == "success":
+        heading = ":white_check_mark: *Pipeline Engine Hiring Outreach completed*"
+    else:
+        heading = ":rotating_light: *Pipeline Engine Hiring Outreach failed*"
     lines = [
         heading,
         (
@@ -123,7 +146,8 @@ def slack_message(payload: dict[str, object]) -> str:
 
 def notify_result(env: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
     result_url = env.get("PIPELINE_ENGINE_HIRING_RESULT_WEBHOOK_URL", "").strip()
-    slack_url = env.get("SLACK_WEBHOOK_URL", "").strip()
+    slack_token = env.get("SLACK_BOT_TOKEN", "").strip()
+    slack_channel = env.get("SLACK_CHANNEL_ID", "").strip()
     result: dict[str, object] = {
         "result_callback": "not_configured",
         "slack": "not_configured",
@@ -135,8 +159,12 @@ def notify_result(env: dict[str, str], payload: dict[str, object]) -> dict[str, 
         # Monitoring must never change the pipeline outcome.
         result["result_callback"] = f"error: {error}"
     try:
-        if slack_url:
-            result["slack"] = post_json(slack_url, {"text": slack_message(payload)})
+        if slack_token and slack_channel:
+            result["slack"] = post_slack_message(
+                slack_token,
+                slack_channel,
+                slack_message(payload),
+            )
     except Exception as error:
         # Monitoring must never change the pipeline outcome.
         result["slack"] = f"error: {error}"

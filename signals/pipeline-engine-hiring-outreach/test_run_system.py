@@ -1,4 +1,5 @@
 import sys
+import json
 
 import run_system
 
@@ -34,6 +35,16 @@ def test_slack_message_reports_success_metrics():
     assert "Lemlist leads added: 4" in message
 
 
+def test_slack_message_labels_dry_run():
+    message = run_system.slack_message({
+        "status": "success",
+        "dry_run": True,
+        "metrics": {},
+    })
+
+    assert "dry run completed" in message
+
+
 def test_slack_message_reports_failed_step():
     message = run_system.slack_message({
         "status": "error",
@@ -49,6 +60,34 @@ def test_slack_message_reports_failed_step():
     assert "failed" in message
     assert "Error step: collect_hiring_signals" in message
     assert "No authentication found" in message
+
+
+def test_post_slack_message_uses_bot_token(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        status = 200
+
+        def read(self):
+            return b'{"ok": true, "ts": "123.456"}'
+
+        def close(self):
+            return None
+
+    def fake_urlopen(request, timeout):
+        captured["authorization"] = request.headers["Authorization"]
+        captured["payload"] = json.loads(request.data)
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(run_system.urllib.request, "urlopen", fake_urlopen)
+
+    result = run_system.post_slack_message("xoxb-test", "C123", "hello")
+
+    assert result == "123.456"
+    assert captured["authorization"] == "Bearer xoxb-test"
+    assert captured["payload"] == {"channel": "C123", "text": "hello"}
+    assert captured["timeout"] == 15
 
 
 def test_dry_run_is_propagated_to_sourcing(monkeypatch, capsys):
