@@ -58,6 +58,7 @@ image = (
 secrets = [
     modal.Secret.from_name("pipeline-engine-hiring-outreach-secrets"),
     modal.Secret.from_name("pipeline-engine-hiring-trigger-secret"),
+    modal.Secret.from_name("pipeline-engine-hiring-result-callback"),
 ]
 
 

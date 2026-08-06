@@ -17,6 +17,40 @@ def test_result_metrics_counts_feeder_source_errors():
     assert metrics["failures"] == 2
 
 
+def test_slack_message_reports_success_metrics():
+    message = run_system.slack_message({
+        "status": "success",
+        "finished_at": "2026-08-06T12:00:00+00:00",
+        "metrics": {
+            "companies_inserted": 2,
+            "contacts_inserted": 5,
+            "contacts_plugged": 4,
+            "failures": 0,
+        },
+    })
+
+    assert "completed" in message
+    assert "Companies added: 2" in message
+    assert "Lemlist leads added: 4" in message
+
+
+def test_slack_message_reports_failed_step():
+    message = run_system.slack_message({
+        "status": "error",
+        "finished_at": "2026-08-06T12:00:00+00:00",
+        "metrics": {},
+        "steps": [{
+            "step": "collect_hiring_signals",
+            "ok": False,
+            "stderr": "No authentication found",
+        }],
+    })
+
+    assert "failed" in message
+    assert "Error step: collect_hiring_signals" in message
+    assert "No authentication found" in message
+
+
 def test_dry_run_is_propagated_to_sourcing(monkeypatch, capsys):
     commands = []
 

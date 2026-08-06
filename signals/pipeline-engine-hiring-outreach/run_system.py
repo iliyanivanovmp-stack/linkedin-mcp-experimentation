@@ -64,21 +64,83 @@ def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
     return metrics
 
 
-def notify_result(env: dict[str, str], payload: dict[str, object]) -> None:
-    url = env.get("PIPELINE_ENGINE_HIRING_RESULT_WEBHOOK_URL", "").strip()
-    if not url:
-        return
+def post_json(url: str, payload: dict[str, object]) -> int:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "pipeline-engine-hiring-outreach/1.0",
+        },
     )
+    response = urllib.request.urlopen(request, timeout=15)
     try:
-        urllib.request.urlopen(request, timeout=15).close()
-    except Exception:
+        return int(response.status)
+    finally:
+        response.close()
+
+
+def slack_message(payload: dict[str, object]) -> str:
+    status = str(payload.get("status", "error"))
+    metrics = payload.get("metrics") or {}
+    if not isinstance(metrics, dict):
+        metrics = {}
+    heading = (
+        ":white_check_mark: *Pipeline Engine Hiring Outreach completed*"
+        if status == "success"
+        else ":rotating_light: *Pipeline Engine Hiring Outreach failed*"
+    )
+    lines = [
+        heading,
+        (
+            f"Companies added: {metrics.get('companies_inserted', 0)} | "
+            f"Contacts added: {metrics.get('contacts_inserted', 0)} | "
+            f"Lemlist leads added: {metrics.get('contacts_plugged', 0)} | "
+            f"Failures: {metrics.get('failures', 0)}"
+        ),
+        f"Finished: {payload.get('finished_at', 'unknown')}",
+    ]
+    if status == "success":
+        lines.append(
+            "<https://docs.google.com/spreadsheets/d/"
+            "1OXRX2OSokVuE6s4ZNFVCSYc97Lbt28SLE96L3GzdcYI/edit|View Google Sheet>"
+        )
+    else:
+        failed_step = next(
+            (
+                step for step in payload.get("steps", [])
+                if isinstance(step, dict) and not step.get("ok")
+            ),
+            {},
+        )
+        lines.extend([
+            f"Error step: {failed_step.get('step', 'unknown')}",
+            f"Error: {failed_step.get('stderr', 'No error details')}",
+        ])
+    return "\n".join(lines)
+
+
+def notify_result(env: dict[str, str], payload: dict[str, object]) -> dict[str, object]:
+    result_url = env.get("PIPELINE_ENGINE_HIRING_RESULT_WEBHOOK_URL", "").strip()
+    slack_url = env.get("SLACK_WEBHOOK_URL", "").strip()
+    result: dict[str, object] = {
+        "result_callback": "not_configured",
+        "slack": "not_configured",
+    }
+    try:
+        if result_url:
+            result["result_callback"] = post_json(result_url, payload)
+    except Exception as error:
         # Monitoring must never change the pipeline outcome.
-        pass
+        result["result_callback"] = f"error: {error}"
+    try:
+        if slack_url:
+            result["slack"] = post_json(slack_url, {"text": slack_message(payload)})
+    except Exception as error:
+        # Monitoring must never change the pipeline outcome.
+        result["slack"] = f"error: {error}"
+    return result
 
 
 def main() -> None:
@@ -139,11 +201,11 @@ def main() -> None:
         results.append(result)
         if not result["ok"]:
             payload = {"status": "error", "started_at": started_at.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "metrics": result_metrics(results), "steps": results}
-            notify_result(env, payload)
+            payload["notifications"] = notify_result(env, payload)
             print(json.dumps(payload, indent=2))
             raise SystemExit(1)
     payload = {"status": "success", "dry_run": args.dry_run, "started_at": started_at.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "metrics": result_metrics(results), "steps": results}
-    notify_result(env, payload)
+    payload["notifications"] = notify_result(env, payload)
     print(json.dumps(payload, indent=2))
 
 
