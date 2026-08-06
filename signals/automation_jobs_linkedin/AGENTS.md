@@ -180,9 +180,11 @@ modal secret create automation-jobs-linkedin-trigger \
 ```
 
 ### Volume (`automation-jobs-linkedin-session`)
-Production uses the guest API and needs no LinkedIn cookies or browser profile.
-The volume persists `automation_jobs_seen.json`; older browser-session files may
-remain but are no longer used by this workflow.
+Production currently uses the guest API, but every LinkedIn MCP reauthentication
+must still mirror `cookies.json`, `source-state.json`, `browser-install.json`,
+and `profile/` into this volume alongside the other two LinkedIn-backed Modal
+volumes. The volume also persists `automation_jobs_seen.json`; session refreshes
+must upload individual paths and preserve that deduplication file.
 
 ### Schedule
 No Modal cron (free plan limit reached). n8n triggers the HTTP endpoint daily.

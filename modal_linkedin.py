@@ -25,10 +25,14 @@ BOOTSTRAP (one-time, run on your Mac):
 
   4. modal deploy modal_linkedin.py
 
-SESSION REFRESH (when cookies expire, ~monthly):
-  Re-run step 1, then upload only the cookies file:
-    modal volume put linkedin-mcp-vol ~/.linkedin-mcp/cookies.json /cookies.json
-  Then redeploy.
+SESSION REFRESH (when cookies expire):
+  Re-run step 1, then upload cookies.json, source-state.json,
+  browser-install.json, and profile to all three Modal volumes:
+    linkedin-mcp-vol
+    pipeline-engine-hiring-linkedin-session
+    automation-jobs-linkedin-session
+  Upload the paths individually so automation_jobs_seen.json remains intact.
+  Then redeploy this warm shared MCP app so it remounts the refreshed session.
 
 SAFETY RULES:
   - Never run this server and the local stdio server simultaneously

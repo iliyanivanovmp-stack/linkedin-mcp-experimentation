@@ -35,7 +35,7 @@ Slack notification with the sheet link.
 - Google Sheet: `1GmV-FEfYKEIODbpJanLqxlMDbjMa7DHijNJtnZZpsnk`
 - Modal app: `automation-jobs-linkedin`
 - Modal secrets: `automation-jobs-linkedin-secrets` (Google/Sheet/Slack) and `automation-jobs-linkedin-trigger` (`TRIGGER_TOKEN`)
-- Modal volume: `automation-jobs-linkedin-session` (persistent deduplication state; production needs no LinkedIn cookies)
+- Modal volume: `automation-jobs-linkedin-session` (persistent deduplication state plus the session bundle mirrored on every LinkedIn MCP reauthentication)
 - State file in volume: `/automation_jobs_seen.json`
 - n8n workflow: triggers daily at 5 PM Europe/Sofia (14:00 UTC summer, 15:00 UTC winter)
 - Service account: `n8n-integration@n8n-integration-467109.iam.gserviceaccount.com`
