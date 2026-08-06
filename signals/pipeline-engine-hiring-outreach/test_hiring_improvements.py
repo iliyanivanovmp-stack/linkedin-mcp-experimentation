@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
-from collect_hiring_signals import classify_job, compensation_details
+import asyncio
+import json
+from pathlib import Path
+
+from collect_hiring_signals import classify_job, compensation_details, guest_search_jobs
 from extract_contacts import (
     MemorySheet,
     decision_maker_titles_for_company,
@@ -21,6 +25,63 @@ def sourcing_config():
         "exclude_description_terms": ["commission only"],
         "evidence_terms": ["outbound", "crm"],
     }
+
+
+def production_sourcing_config():
+    return json.loads((Path(__file__).parent / "sourcing_config.json").read_text())
+
+
+def test_production_searches_use_plain_role_terms_and_recency_filter():
+    config = production_sourcing_config()
+
+    assert config["date_posted"] == "past_24_hours"
+    assert config["sort_by"] == "date"
+    assert config["max_pages"] == 1
+    assert all(" OR " not in query for query in config["search_queries"])
+    assert all("remote" not in query.casefold() for query in config["search_queries"])
+    assert all("24" not in query for query in config["search_queries"])
+
+
+def test_hiring_guest_search_maps_structured_filters(monkeypatch):
+    captured_urls = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return b'<a href="/jobs/view/1234567890/">Job</a>'
+
+    def fake_urlopen(request, timeout):
+        captured_urls.append(request.full_url)
+        return FakeResponse()
+
+    monkeypatch.setattr("collect_hiring_signals.urlopen", fake_urlopen)
+
+    result = asyncio.run(guest_search_jobs(
+        "sales development representative",
+        "United States",
+        1,
+        "past_24_hours",
+        "full_time,contract",
+        "entry,associate",
+        "remote",
+        True,
+        "date",
+    ))
+
+    assert result["job_ids"] == ["1234567890"]
+    url = captured_urls[0]
+    assert "keywords=sales+development+representative" in url
+    assert "f_TPR=r86400" in url
+    assert "f_JT=F%2CC" in url
+    assert "f_E=2%2C3" in url
+    assert "f_WT=2" in url
+    assert "f_EA=true" in url
+    assert "sortBy=DD" in url
 
 
 def test_growth_role_requires_pipeline_evidence():

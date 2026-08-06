@@ -1,11 +1,20 @@
 {
   "search_queries": [
-    "\"sales development representative\" OR \"business development representative\" OR \"appointment setter\" OR \"lead generation specialist\" OR \"outbound sales representative\" OR \"sales operations\" OR \"revenue operations\" OR \"marketing operations\" OR \"demand generation\" OR \"growth manager\""
+    "sales development representative",
+    "business development representative",
+    "appointment setter",
+    "lead generation specialist",
+    "outbound sales representative",
+    "sales operations",
+    "revenue operations",
+    "marketing operations",
+    "demand generation",
+    "growth manager"
   ],
   "location": "United States",
-  "date_posted": "past_week",
+  "date_posted": "past_24_hours",
   "sort_by": "date",
-  "max_pages": 3,
+  "max_pages": 1,
   "max_job_details_per_query": 60,
   "max_opportunities_per_run": 10,
   "role_families": {

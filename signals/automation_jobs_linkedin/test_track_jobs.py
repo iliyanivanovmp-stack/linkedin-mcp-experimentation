@@ -156,6 +156,19 @@ def test_search_lanes_cover_ai_marketing_email_and_pipeline_automation():
     assert "pipeline automation" in secondary_lane
 
 
+def test_production_searches_keep_filters_out_of_keywords():
+    assert CONFIG["work_type"] == "remote"
+    assert CONFIG["job_type"] == "contract,part_time,temporary,other"
+    assert CONFIG["date_posted"] == "past_week"
+    assert CONFIG["sort_by"] == "date"
+    for query in CONFIG["search_queries"]:
+        lower = query.casefold()
+        assert "remote" not in lower
+        assert "last 24" not in lower
+        assert "past 24" not in lower
+        assert "past week" not in lower
+
+
 def test_every_expertise_lane_runs_in_every_target_location():
     targets = configured_search_targets(CONFIG)
     assert len(targets) == len(CONFIG["search_queries"]) * len(CONFIG["locations"])
