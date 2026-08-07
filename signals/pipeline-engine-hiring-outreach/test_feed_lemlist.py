@@ -77,3 +77,19 @@ def test_source_open_failure_is_reported_as_a_pipeline_error(monkeypatch):
         "error": "sheet unavailable",
     }]
     assert result["sources"][0]["error"] == "sheet unavailable"
+def test_google_read_retries_temporary_quota_error(monkeypatch):
+    calls = []
+    sleeps = []
+
+    def read():
+        calls.append(True)
+        if len(calls) < 3:
+            raise RuntimeError("APIError: [429]: Quota exceeded")
+        return [["status"]]
+
+    monkeypatch.setattr(feed_lemlist.time, "sleep", sleeps.append)
+
+    assert feed_lemlist.google_read_with_retry(read) == [["status"]]
+    assert len(calls) == 3
+    assert sleeps == [5, 10]
+

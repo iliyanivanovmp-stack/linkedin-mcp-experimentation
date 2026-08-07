@@ -6,6 +6,7 @@ import csv
 import json
 import os
 import sys
+import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
@@ -197,10 +198,10 @@ class GoogleSheet:
             client = gspread.service_account(filename=credentials_path)
 
         self.worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet)
-        self.headers = list(self.worksheet.row_values(1))
+        self.headers = list(google_read_with_retry(lambda: self.worksheet.row_values(1)))
 
     def rows(self) -> list[SheetRow]:
-        values = self.worksheet.get_all_values()
+        values = google_read_with_retry(self.worksheet.get_all_values)
         if not values:
             return []
         self.headers = list(values[0])
@@ -238,6 +239,19 @@ class GoogleSheet:
             })
         if cells:
             self.worksheet.batch_update(cells)
+
+
+def google_read_with_retry(call, attempts: int = 4):
+    """Retry temporary Google Sheets read-quota responses with bounded backoff."""
+    for attempt in range(attempts):
+        try:
+            return call()
+        except Exception as error:
+            quota_error = "429" in str(error) or "quota exceeded" in str(error).casefold()
+            if not quota_error or attempt == attempts - 1:
+                raise
+            time.sleep(5 * (2**attempt))
+    raise RuntimeError("Google Sheets retry loop exited unexpectedly")
 
 
 class LemlistClient:
