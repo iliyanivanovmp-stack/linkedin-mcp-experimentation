@@ -79,7 +79,7 @@ Keep the Lemlist campaigns and n8n workflow inactive until all items pass:
 
 1. Run `PYTHONPATH=. python3 -m pytest -q`.
 2. Run `python3 -m compileall -q .`.
-3. Refresh and verify the dedicated LinkedIn session volume.
+3. Verify the centralized `linkedin-mcp` service and its authenticated session.
 4. Run `python3 setup_workbook.py` to reconcile the live Sheet schema.
 5. Deploy the validated `modal_app.py`.
 6. Run a bounded Modal dry run with sourcing enabled and confirm zero mutations.

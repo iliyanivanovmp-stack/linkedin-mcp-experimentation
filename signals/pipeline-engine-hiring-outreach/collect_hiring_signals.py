@@ -5,20 +5,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
-import html
 import json
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
 from lead_sheet import append_leads  # noqa: E402
+from linkedin_mcp_client import LinkedInMCPClient, LinkedInMCPExtractor  # noqa: E402
 
 DEFAULT_CONFIG = ROOT / "sourcing_config.json"
 DEFAULT_OUTPUT = ROOT / "exports" / "pipeline_engine_hiring_opportunities.csv"
@@ -335,111 +333,6 @@ def _column_letter(number: int) -> str:
     return letters
 
 
-async def guest_search_jobs(
-    keywords: str,
-    location: str | None,
-    max_pages: int,
-    date_posted: str | None,
-    job_type: str | None,
-    experience_level: str | None,
-    work_type: str | None,
-    easy_apply: bool,
-    sort_by: str | None,
-) -> dict[str, Any]:
-    date_map = {
-        "past_hour": "r3600",
-        "past_24h": "r86400",
-        "past_24_hours": "r86400",
-        "past_week": "r604800",
-        "past_month": "r2592000",
-    }
-    job_type_map = {
-        "full_time": "F",
-        "part_time": "P",
-        "contract": "C",
-        "temporary": "T",
-        "volunteer": "V",
-        "internship": "I",
-        "other": "O",
-    }
-    experience_level_map = {
-        "internship": "1",
-        "entry": "2",
-        "associate": "3",
-        "mid_senior": "4",
-        "director": "5",
-        "executive": "6",
-    }
-    work_type_map = {"on_site": "1", "onsite": "1", "remote": "2", "hybrid": "3"}
-    sort_map = {"date": "DD", "recent": "DD", "relevance": "R"}
-
-    def normalize_csv(value: str | None, mapping: dict[str, str]) -> str:
-        return ",".join(
-            mapping.get(part.strip(), part.strip())
-            for part in (value or "").split(",")
-            if part.strip()
-        )
-
-    def fetch(start: int) -> tuple[str, str]:
-        params = {"keywords": keywords, "start": str(start)}
-        if location:
-            params["location"] = location
-        if date_posted:
-            params["f_TPR"] = date_map.get(date_posted, date_posted)
-        if job_type:
-            params["f_JT"] = normalize_csv(job_type, job_type_map)
-        if experience_level:
-            params["f_E"] = normalize_csv(experience_level, experience_level_map)
-        if work_type:
-            params["f_WT"] = normalize_csv(work_type, work_type_map)
-        if easy_apply:
-            params["f_EA"] = "true"
-        if sort_by:
-            params["sortBy"] = sort_map.get(sort_by, sort_by)
-        url = (
-            "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
-            + urlencode(params)
-        )
-        request = Request(
-            url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-        )
-        with urlopen(request, timeout=30) as response:
-            return url, response.read().decode("utf-8", "ignore")
-
-    seen: set[str] = set()
-    job_ids: list[str] = []
-    page_texts: list[str] = []
-    first_url = ""
-    for page in range(max_pages):
-        url, body = await asyncio.to_thread(fetch, page * 25)
-        first_url = first_url or url
-        page_ids = []
-        for match in re.finditer(r"(?:urn:li:jobPosting:|/jobs/view/)(\d+)", body):
-            job_id = match.group(1)
-            if job_id not in seen:
-                seen.add(job_id)
-                page_ids.append(job_id)
-        if not page_ids:
-            break
-        job_ids.extend(page_ids)
-        text = html.unescape(re.sub(r"<[^>]+>", " ", body))
-        text = re.sub(r"\s+", " ", text).strip()
-        if text:
-            page_texts.append(text)
-        if len(page_ids) < 25:
-            break
-    return {
-        "url": first_url,
-        "job_ids": job_ids,
-        "sections": {"search_results": "\n---\n".join(page_texts)},
-    }
-
-
 def parse_amount(value: str) -> float | None:
     match = re.search(r"(?i)(\d[\d,.]*)(?:\s*)(k|m)?", value)
     if not match:
@@ -650,47 +543,29 @@ async def collect(
     skip_job_ids: set[str] | None = None,
     skip_company_keys: set[str] | None = None,
 ) -> dict[str, Any]:
-    original = sys.argv[:]
-    sys.argv = [sys.argv[0]]
-    from linkedin_mcp_server.drivers.browser import close_browser, get_or_create_browser
-    from linkedin_mcp_server.scraping import LinkedInExtractor
-
     searches = []
     opportunities = []
     inspected: set[str] = set()
     selected_company_keys = set(skip_company_keys or set())
+    client = LinkedInMCPClient()
     try:
-        browser = await asyncio.wait_for(get_or_create_browser(), timeout=90)
-        extractor = LinkedInExtractor(browser.page)
+        extractor = LinkedInMCPExtractor(client)
         query_job_ids = known_job_ids
         for query in config["search_queries"]:
             if query_job_ids is not None:
                 search = {"job_ids": query_job_ids, "url": "known-job-ids"}
             else:
-                try:
-                    search = await extractor.search_jobs(
-                        query,
-                        location=config.get("location"),
-                        max_pages=int(config.get("max_pages", 1)),
-                        date_posted=config.get("date_posted"),
-                        job_type=config.get("job_type"),
-                        experience_level=config.get("experience_level"),
-                        work_type=config.get("work_type"),
-                        easy_apply=bool(config.get("easy_apply", False)),
-                        sort_by=config.get("sort_by", "date"),
-                    )
-                except Exception:
-                    search = await guest_search_jobs(
-                        query,
-                        config.get("location"),
-                        int(config.get("max_pages", 1)),
-                        config.get("date_posted"),
-                        config.get("job_type"),
-                        config.get("experience_level"),
-                        config.get("work_type"),
-                        bool(config.get("easy_apply", False)),
-                        config.get("sort_by", "date"),
-                    )
+                search = await extractor.search_jobs(
+                    query,
+                    location=config.get("location"),
+                    max_pages=int(config.get("max_pages", 1)),
+                    date_posted=config.get("date_posted"),
+                    job_type=config.get("job_type"),
+                    experience_level=config.get("experience_level"),
+                    work_type=config.get("work_type"),
+                    easy_apply=bool(config.get("easy_apply", False)),
+                    sort_by=config.get("sort_by", "date"),
+                )
             searches.append({
                 "query": query,
                 "url": search.get("url", ""),
@@ -741,7 +616,7 @@ async def collect(
                 opportunities.append({
                     "job_id": job_id,
                     "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
-                    "poster_linkedin_url": await poster_reference_from_loaded_page(browser.page) or poster_reference(details),
+                    "poster_linkedin_url": poster_reference(details),
                     "company_linkedin_url": company_linkedin_url,
                     "company_website": website,
                     "company_domain": domain,
@@ -754,19 +629,17 @@ async def collect(
                     break
             if query_job_ids is not None or len(opportunities) >= opportunity_limit:
                 break
+        if known_job_ids is None and not inspected:
+            raise RuntimeError(
+                "Central LinkedIn MCP returned zero job IDs across all configured searches"
+            )
         return {
             "searches": searches,
             "jobs_inspected": len(inspected),
             "opportunities": opportunities,
         }
     finally:
-        try:
-            try:
-                await asyncio.wait_for(close_browser(), timeout=30)
-            except Exception:
-                pass
-        finally:
-            sys.argv = original
+        client.close()
 
 
 def main() -> None:

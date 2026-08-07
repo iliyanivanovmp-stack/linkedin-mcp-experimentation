@@ -65,13 +65,11 @@ uvx mcp-server-linkedin@latest --login
 # 2. Create the Modal Volume
 modal volume create linkedin-mcp-vol
 
-# 3. Upload your session to all LinkedIn-backed Modal volumes
-for volume_name in linkedin-mcp-vol pipeline-engine-hiring-linkedin-session automation-jobs-linkedin-session; do
-  modal volume put "$volume_name" ~/.linkedin-mcp/cookies.json /cookies.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/source-state.json /source-state.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/browser-install.json /browser-install.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/profile /profile --force
-done
+# 3. Upload the session only to the centralized LinkedIn MCP volume
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/cookies.json /cookies.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/source-state.json /source-state.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/browser-install.json /browser-install.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/profile /profile --force
 
 # 4. Deploy
 modal deploy modal_linkedin.py
@@ -90,16 +88,14 @@ Content-Type: application/json
 **Session refresh (when cookies expire, ~monthly):**
 ```bash
 uvx mcp-server-linkedin@latest --login
-for volume_name in linkedin-mcp-vol pipeline-engine-hiring-linkedin-session automation-jobs-linkedin-session; do
-  modal volume put "$volume_name" ~/.linkedin-mcp/cookies.json /cookies.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/source-state.json /source-state.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/browser-install.json /browser-install.json --force
-  modal volume put "$volume_name" ~/.linkedin-mcp/profile /profile --force
-done
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/cookies.json /cookies.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/source-state.json /source-state.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/browser-install.json /browser-install.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/profile /profile --force
 ```
 
-The Automation Jobs upload must preserve `/automation_jobs_seen.json` in its
-volume. Upload the session paths individually and never replace the volume root.
+Hiring Pipeline Roles and Automation Jobs call this shared MCP endpoint. Their
+own volumes must never receive LinkedIn cookies or browser profile files.
 
 ---
 

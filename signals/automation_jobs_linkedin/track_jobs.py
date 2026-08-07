@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from enrichment import ApolloCompanyClient, ENRICHMENT_FIELDS, enrich_company, load_domain_overrides
+from linkedin_mcp_client import LinkedInMCPClient, LinkedInMCPExtractor
 
 ROOT = Path(__file__).resolve().parent
 SIGNALS = ROOT.parent
@@ -843,68 +844,6 @@ def _http_get(url: str) -> str:
     raise RuntimeError("HTTP retry loop exited unexpectedly")
 
 
-async def _guest_search(
-    keywords: str,
-    location: str | None,
-    max_pages: int,
-    date_posted: str | None,
-    job_type: str | None,
-    work_type: str | None,
-    sort_by: str | None,
-) -> tuple[str, list[str]]:
-    """Return (search_url, job_ids) via LinkedIn's unauthenticated jobs API."""
-    import html as html_module
-    import urllib.parse
-
-    seen: set[str] = set()
-    job_ids: list[str] = []
-    first_url = ""
-
-    for page in range(max_pages):
-        params: dict[str, str] = {"keywords": keywords, "start": str(page * _PAGE_SIZE)}
-        if location:
-            params["location"] = location
-        if date_posted:
-            params["f_TPR"] = _DATE_POSTED_MAP.get(date_posted.strip(), date_posted)
-        if job_type:
-            params["f_JT"] = ",".join(
-                _JOB_TYPE_MAP.get(value.strip(), value.strip())
-                for value in job_type.split(",") if value.strip()
-            )
-        if work_type:
-            params["f_WT"] = ",".join(
-                _WORK_TYPE_MAP.get(value.strip(), value.strip())
-                for value in work_type.split(",") if value.strip()
-            )
-        if sort_by:
-            params["sortBy"] = _SORT_BY_MAP.get(sort_by.strip(), sort_by)
-
-        url = (
-            "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
-            + urllib.parse.urlencode(params)
-        )
-        if not first_url:
-            first_url = url
-
-        body = await asyncio.to_thread(_http_get, url)
-        if not body.strip():
-            break
-
-        page_ids = []
-        for m in re.finditer(r"(?:urn:li:jobPosting:|/jobs/view/)(\d+)", body):
-            jid = m.group(1)
-            if jid not in seen:
-                seen.add(jid)
-                page_ids.append(jid)
-        if not page_ids:
-            break
-        job_ids.extend(page_ids)
-        if len(page_ids) < _PAGE_SIZE:
-            break
-
-    return first_url, job_ids
-
-
 async def wait_between_searches(config: dict[str, Any], query_index: int) -> None:
     """Pause before every search after the first to avoid back-to-back requests."""
     if query_index == 0:
@@ -938,158 +877,9 @@ def interleave_job_groups(groups: list[list[dict[str, Any]]]) -> list[dict[str, 
     return combined
 
 
-def _parse_tag(html: str, tag: str, cls: str) -> str:
-    """Extract first text content of <tag class="...cls...">...</tag>."""
-    pattern = rf'<{tag}[^>]*\b{re.escape(cls)}[^>]*>(.*?)</{tag}>'
-    m = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
-    if not m:
-        return ""
-    return re.sub(r"<[^>]+>", " ", m.group(1)).strip()
-
-
-async def _guest_job_details(job_id: str) -> dict[str, Any]:
-    """Fetch job details via LinkedIn's unauthenticated job posting API."""
-    url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
-    try:
-        raw = await asyncio.to_thread(_http_get, url)
-    except Exception as exc:
-        return {"error": f"fetch failed: {type(exc).__name__}: {exc}"}
-
-    raw = html_module.unescape(raw)
-
-    title = (
-        _parse_tag(raw, "h2", "top-card-layout__title")
-        or _parse_tag(raw, "h1", "top-card-layout__title")
-    )
-    company = _parse_tag(raw, "a", "topcard__org-name-link") or _parse_tag(raw, "span", "topcard__org-name-link")
-
-    desc_text = description_from_guest_html(raw)
-
-    # Company LinkedIn URL
-    company_url = ""
-    m2 = re.search(r'href="(https://www\.linkedin\.com/company/[^"]+)"', raw)
-    if m2:
-        company_url = normalize_linkedin_url(m2.group(1))
-
-    return {
-        "job_url": f"https://www.linkedin.com/jobs/view/{job_id}/",
-        "job_title": title.strip(),
-        "company_name": company.strip(),
-        "company_url": company_url,
-        "description": desc_text,
-        "poster_linkedin_url": poster_url_from_guest_html(raw),
-    }
-
-
-async def collect_guest_api(config: dict[str, Any]) -> dict[str, Any]:
-    """Full collection using only LinkedIn's unauthenticated guest APIs — no browser needed."""
-    job_groups: list[list[dict[str, Any]]] = []
-    inspected: set[str] = set()
-    searches = []
-    evaluations: list[dict[str, Any]] = []
-    failures: list[dict[str, str]] = []
-    max_jobs = int(config.get("max_jobs_per_run", 10))
-    fetch_limit = max_jobs * int(config.get("candidate_fetch_multiplier", 3))
-
-    for search_index, (query, location) in enumerate(configured_search_targets(config)):
-        await wait_between_searches(config, search_index)
-        query_jobs: list[dict[str, Any]] = []
-        search_url, job_ids = await _guest_search(
-            query,
-            location=location,
-            max_pages=int(config.get("max_pages", 1)),
-            date_posted=config.get("date_posted"),
-            job_type=config.get("job_type"),
-            work_type=config.get("work_type"),
-            sort_by=config.get("sort_by", "date"),
-        )
-        searches.append({
-            "query": query,
-            "location": location,
-            "url": search_url,
-            "jobs_found": len(job_ids),
-        })
-
-        for job_id in job_ids[:fetch_limit]:
-            job_id = str(job_id)
-            if job_id in inspected:
-                continue
-            inspected.add(job_id)
-
-            details = await _guest_job_details(job_id)
-            if details.get("error"):
-                failures.append({"job_id": job_id, "stage": "details", "error": details["error"]})
-                continue
-            if not details.get("job_title"):
-                failures.append({"job_id": job_id, "stage": "parse", "error": "missing job title"})
-                continue
-
-            job_title = details["job_title"]
-            evaluation = evaluate_job(job_title, details.get("description", ""), config)
-            evaluations.append({
-                "job_id": job_id,
-                "job_title": job_title,
-                **evaluation,
-            })
-            if not evaluation["accepted"]:
-                continue
-
-            company_website = await website_from_public_company_page(details.get("company_url", ""))
-            if company_website:
-                await asyncio.sleep(random.uniform(0.2, 0.7))
-
-            query_jobs.append({
-                "job_id": job_id,
-                "job_url": details["job_url"],
-                "company_name": details["company_name"],
-                "company_website": company_website,
-                "company_linkedin_url": details.get("company_url", ""),
-                "job_title": job_title,
-                "text": "About the job\n\n" + details["description"],
-                "poster_linkedin_url": details.get("poster_linkedin_url", ""),
-                "relevance_score": evaluation["score"],
-                "relevance_signals": evaluation["positive_signals"],
-                "negative_signals": evaluation.get("negative_signals", []),
-                "search_lane": search_index + 1,
-                "search_location": location,
-            })
-
-            if len(query_jobs) >= fetch_limit:
-                break
-        job_groups.append(query_jobs)
-
-    if inspected and len(failures) == len(inspected):
-        raise RuntimeError(
-            f"LinkedIn returned {len(inspected)} job IDs but every detail fetch or parse failed"
-        )
-
-    return {
-        "searches": searches,
-        "jobs_inspected": len(inspected),
-        "jobs": interleave_job_groups(job_groups),
-        "evaluations": evaluations,
-        "health": {
-            "collector": "guest_api",
-            "detail_failures": len(failures),
-            "failures": failures,
-        },
-    }
-
-
 # ── LinkedIn collection ───────────────────────────────────────────────────────
 
 async def collect(config: dict[str, Any]) -> dict[str, Any]:
-    original = sys.argv[:]
-    sys.argv = [sys.argv[0]]
-
-    try:
-        from linkedin_mcp_server.core.exceptions import AuthenticationError
-        from linkedin_mcp_server.drivers.browser import close_browser, get_or_create_browser
-        from linkedin_mcp_server.scraping import LinkedInExtractor
-    except ImportError:
-        sys.argv = original
-        return await collect_guest_api(config)
-
     job_groups: list[list[dict[str, Any]]] = []
     inspected: set[str] = set()
     searches = []
@@ -1097,15 +887,10 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
     failures: list[dict[str, str]] = []
     max_jobs = int(config.get("max_jobs_per_run", 10))
     fetch_limit = max_jobs * int(config.get("candidate_fetch_multiplier", 3))
+    client = LinkedInMCPClient()
 
     try:
-        try:
-            browser = await get_or_create_browser()
-        except AuthenticationError:
-            print("Browser auth failed, falling back to guest API", file=sys.stderr)
-            return await collect_guest_api(config)
-
-        extractor = LinkedInExtractor(browser.page)
+        extractor = LinkedInMCPExtractor(client)
 
         for search_index, (query, location) in enumerate(configured_search_targets(config)):
             await wait_between_searches(config, search_index)
@@ -1177,10 +962,7 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
                     "company_linkedin_url": company_linkedin_url,
                     "job_title": job_title,
                     "text": text,
-                    "poster_linkedin_url": (
-                        await poster_url_from_loaded_page(browser.page)
-                        or poster_url_from_details(details)
-                    ),
+                    "poster_linkedin_url": poster_url_from_details(details),
                     "relevance_score": evaluation["score"],
                     "relevance_signals": evaluation["positive_signals"],
                     "negative_signals": evaluation.get("negative_signals", []),
@@ -1197,13 +979,17 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError(
                 f"LinkedIn returned {len(inspected)} job IDs but every browser detail parse failed"
             )
+        if not inspected:
+            raise RuntimeError(
+                "Central LinkedIn MCP returned zero job IDs across all configured searches"
+            )
         return {
             "searches": searches,
             "jobs_inspected": len(inspected),
             "jobs": interleave_job_groups(job_groups),
             "evaluations": evaluations,
             "health": {
-                "collector": "authenticated_browser",
+                "collector": "central_linkedin_mcp",
                 "detail_failures": sum(
                     1 for failure in failures if failure["stage"] in {"details", "parse"}
                 ),
@@ -1211,10 +997,7 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
             },
         }
     finally:
-        try:
-            await close_browser()
-        finally:
-            sys.argv = original
+        client.close()
 
 
 # ── entry point ───────────────────────────────────────────────────────────────

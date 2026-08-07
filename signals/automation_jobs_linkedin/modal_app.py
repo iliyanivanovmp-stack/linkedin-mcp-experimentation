@@ -47,8 +47,8 @@ app = modal.App("automation-jobs-linkedin")
 
 SIGNAL_DIR = Path(__file__).resolve().parent
 LINKEDIN_PYTHON = "/usr/local/bin/python"
-# Stored in the volume so deduplication persists across daily runs
-STATE_PATH = "/root/.linkedin-mcp/automation_jobs_seen.json"
+# The dedicated volume stores deduplication state only. LinkedIn auth is centralized.
+STATE_PATH = "/state/automation_jobs_seen.json"
 
 linkedin_session = modal.Volume.from_name(
     "automation-jobs-linkedin-session",
@@ -176,7 +176,7 @@ def _is_authorized(authorization: str | None, expected_token: str) -> bool:
 @app.function(
     image=image,
     secrets=secrets,
-    volumes={"/root/.linkedin-mcp": linkedin_session},
+    volumes={"/state": linkedin_session},
     timeout=1200,
     max_containers=1,
 )
@@ -204,7 +204,7 @@ def run_daily():
 @app.function(
     image=image,
     secrets=secrets,
-    volumes={"/root/.linkedin-mcp": linkedin_session},
+    volumes={"/state": linkedin_session},
     timeout=1200,
     max_containers=1,
 )

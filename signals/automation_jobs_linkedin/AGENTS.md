@@ -11,11 +11,10 @@ config.json
            │
            ▼
 track_jobs.py :: collect()
-    ├─ tries get_or_create_browser() (full browser path, local)
-    │       └─ on AuthenticationError → falls back to collect_guest_api()
-    └─ collect_guest_api()  ← always used on Modal (no browser auth)
-           ├─ _guest_search()       → /jobs-guest/jobs/api/seeMoreJobPostings/search
-           └─ _guest_job_details()  → /jobs-guest/jobs/api/jobPosting/{id}
+    └─ LinkedInMCPClient → centralized Modal LinkedIn MCP
+           ├─ search_jobs
+           ├─ get_job_details
+           └─ get_company_profile
                    │
                    ▼
            evaluate_job() against candidate_profile.yaml-derived rules
@@ -35,24 +34,15 @@ track_jobs.py :: collect()
            save_seen()        → state file
 ```
 
-## Two execution modes
+## Execution mode
 
-### Local (full browser)
-Uses `mcp-server-linkedin` Patchright browser with the persisted LinkedIn session.
-Gets company website and poster LinkedIn URL when LinkedIn renders the hiring card.
+Both local and Modal execution call the centralized, authenticated LinkedIn MCP
+service. This component never owns cookies or launches a LinkedIn browser.
 
 ```bash
 bash run.sh                    # normal run
 bash run.sh --reset-state      # ignore seen IDs, re-add everything found
 ```
-
-### Modal (guest API fallback)
-Browser auth fails on fresh containers (LinkedIn anti-bot). `collect()` catches
-`AuthenticationError` and automatically delegates to `collect_guest_api()`, which
-uses LinkedIn's unauthenticated `/jobs-guest/` endpoints — no cookies required.
-It enriches `company_website` from the public LinkedIn company page when the
-external website is visible there. It also extracts `poster_linkedin_url` when
-the guest job page exposes a hiring-team card; otherwise that field stays empty.
 
 ```bash
 modal run signals/automation_jobs_linkedin/modal_app.py
@@ -180,11 +170,9 @@ modal secret create automation-jobs-linkedin-trigger \
 ```
 
 ### Volume (`automation-jobs-linkedin-session`)
-Production currently uses the guest API, but every LinkedIn MCP reauthentication
-must still mirror `cookies.json`, `source-state.json`, `browser-install.json`,
-and `profile/` into this volume alongside the other two LinkedIn-backed Modal
-volumes. The volume also persists `automation_jobs_seen.json`; session refreshes
-must upload individual paths and preserve that deduplication file.
+The volume stores only `automation_jobs_seen.json`. Never upload LinkedIn cookies
+or browser profiles here. Authentication belongs only to the centralized
+`linkedin-mcp-vol` volume.
 
 ### Schedule
 No Modal cron (free plan limit reached). n8n triggers the HTTP endpoint daily.

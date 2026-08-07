@@ -37,7 +37,8 @@ The combined cap is 30 contacts per Europe/Sofia calendar day.
 - Dedicated Slack secret: `pipeline-engine-hiring-slack` with
   `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_ID`; Modal posts completion messages
   directly through `chat.postMessage`.
-- Modal volume: `pipeline-engine-hiring-linkedin-session`
+- Central LinkedIn MCP: `linkedin-mcp`, with its only session in `linkedin-mcp-vol`.
+  This app does not mount or own LinkedIn session data.
 - n8n workflow: `Pipeline Engine Hiring Outreach — Daily`
   (`HoBUmGREhd4uE5F3`), configured for 08:45 and intentionally inactive until
   the launch checklist passes
