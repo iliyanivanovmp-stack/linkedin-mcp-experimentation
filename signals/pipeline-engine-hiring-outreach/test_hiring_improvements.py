@@ -6,9 +6,7 @@ from pathlib import Path
 
 from collect_hiring_signals import (
     classify_job,
-    collect,
     compensation_details,
-    guest_job_details,
     guest_search_jobs,
 )
 from extract_contacts import (
@@ -99,63 +97,6 @@ def test_hiring_guest_search_maps_structured_filters(monkeypatch):
     assert "f_WT=2" in url
     assert "f_EA=true" in url
     assert "sortBy=DD" in url
-
-
-def test_guest_job_details_parses_public_job_card(monkeypatch):
-    class FakeResponse:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, traceback):
-            return False
-
-        def read(self):
-            return b"""\
-                <h2 class="top-card-layout__title">Sales Development Representative</h2>
-                <a class="topcard__org-name-link" href="https://www.linkedin.com/company/acme?trk=job">Acme</a>
-                <div class="show-more-less-html__markup">Own outbound prospecting and CRM.</div>
-                <section class="hirer-card"><a href="https://www.linkedin.com/in/jane-recruiter?trk=job">Jane</a></section>
-            """
-
-    monkeypatch.setattr(
-        "collect_hiring_signals.urlopen", lambda request, timeout: FakeResponse()
-    )
-
-    details = asyncio.run(guest_job_details("1234567890"))
-
-    assert details["job_title"] == "Sales Development Representative"
-    assert details["company_name"] == "Acme"
-    assert details["company_linkedin_url"] == "https://www.linkedin.com/company/acme/"
-    assert (
-        details["poster_linkedin_url"] == "https://www.linkedin.com/in/jane-recruiter/"
-    )
-    assert details["description"] == "Own outbound prospecting and CRM."
-
-
-def test_collect_uses_guest_details_without_browser_auth(monkeypatch):
-    async def fake_details(job_id):
-        return {
-            "job_url": f"https://www.linkedin.com/jobs/view/{job_id}/",
-            "job_title": "Sales Development Representative",
-            "company_name": "Acme",
-            "company_linkedin_url": "https://www.linkedin.com/company/acme/",
-            "description": "Own outbound prospecting and CRM.",
-            "poster_linkedin_url": "",
-        }
-
-    monkeypatch.setattr("collect_hiring_signals.guest_job_details", fake_details)
-
-    result = asyncio.run(
-        collect(
-            sourcing_config()
-            | {"search_queries": ["sales development representative"]},
-            ["123"],
-        )
-    )
-
-    assert result["collector"] == "linkedin_guest_api"
-    assert result["jobs_inspected"] == 1
-    assert result["opportunities"][0]["company_name"] == "Acme"
 
 
 def test_growth_role_requires_pipeline_evidence():

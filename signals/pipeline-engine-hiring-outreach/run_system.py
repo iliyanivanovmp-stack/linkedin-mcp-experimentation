@@ -221,6 +221,7 @@ def main() -> None:
         ("feed_existing_contacts", feeder_command),
     ]
     if not args.skip_sourcing:
+        sourcing_python = env.get("LINKEDIN_PYTHON", sys.executable)
         sourcing_limit = (
             ["--limit", str(args.sourcing_limit)]
             if args.sourcing_limit is not None
@@ -230,7 +231,7 @@ def main() -> None:
             (
                 "collect_hiring_signals",
                 [
-                    sys.executable,
+                    sourcing_python,
                     str(SYSTEM_DIR / "collect_hiring_signals.py"),
                     "--config",
                     str(SYSTEM_DIR / "sourcing_config.json"),

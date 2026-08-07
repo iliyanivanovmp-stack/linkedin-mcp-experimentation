@@ -2,4 +2,6 @@ fastapi==0.115.14
 google-auth==2.49.1
 gspread==6.2.1
 modal==1.4.2
+mcp-server-linkedin==4.16.1
+patchright==1.60.1
 pytest==9.0.3

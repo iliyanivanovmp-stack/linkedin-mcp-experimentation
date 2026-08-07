@@ -9,6 +9,7 @@ import html
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -439,91 +440,6 @@ async def guest_search_jobs(
     }
 
 
-def _guest_text(raw: str, tag: str, class_name: str) -> str:
-    match = re.search(
-        rf"<{tag}[^>]*\b{re.escape(class_name)}[^>]*>(.*?)</{tag}>",
-        raw,
-        re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        return ""
-    value = re.sub(r"<[^>]+>", " ", match.group(1))
-    return re.sub(r"\s+", " ", html.unescape(value)).strip()
-
-
-def _guest_description(raw: str) -> str:
-    match = re.search(
-        r'<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
-        raw,
-        re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        return ""
-    value = re.sub(r"(?i)<br\s*/?>", "\n", match.group(1))
-    value = re.sub(r"(?i)</(?:p|li|h[1-6])>", "\n", value)
-    value = re.sub(r"<[^>]+>", " ", value)
-    return "\n".join(clean_lines(html.unescape(value)))
-
-
-def _guest_poster_url(raw: str) -> str:
-    for pattern in (
-        r'<(?:section|div)[^>]*class="[^"]*(?:hirer-card|hiring-team|message-the-recruiter)[^"]*"[^>]*>(.*?)</(?:section|div)>',
-        r"(?:(?:Meet|Contact|Message)\s+the\s+hiring\s+team|Who you can reach out to)(.{0,4000})",
-    ):
-        card = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
-        if not card:
-            continue
-        profile = re.search(
-            r'href=["\']((?:https://(?:www\.)?linkedin\.com)?/in/[^"\'?#]+)',
-            card.group(1),
-            re.IGNORECASE,
-        )
-        if profile:
-            return normalize_linkedin_url(html.unescape(profile.group(1)))
-    return ""
-
-
-async def guest_job_details(job_id: str) -> dict[str, str]:
-    """Fetch one public job without an authenticated LinkedIn browser session."""
-
-    def fetch() -> str:
-        request = Request(
-            f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}",
-            headers={
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-        )
-        with urlopen(request, timeout=30) as response:
-            return response.read().decode("utf-8", "ignore")
-
-    raw = await asyncio.to_thread(fetch)
-    title = _guest_text(raw, "h2", "top-card-layout__title") or _guest_text(
-        raw, "h1", "top-card-layout__title"
-    )
-    company = _guest_text(raw, "a", "topcard__org-name-link") or _guest_text(
-        raw, "span", "topcard__org-name-link"
-    )
-    description = _guest_description(raw)
-    company_match = re.search(
-        r'href=["\']((?:https://(?:www\.)?linkedin\.com)?/company/[^"\'?#]+)',
-        raw,
-        re.IGNORECASE,
-    )
-    company_url = normalize_linkedin_url(
-        html.unescape(company_match.group(1)) if company_match else ""
-    )
-    return {
-        "job_url": f"https://www.linkedin.com/jobs/view/{job_id}/",
-        "job_title": title,
-        "company_name": company,
-        "company_linkedin_url": company_url,
-        "description": description,
-        "poster_linkedin_url": _guest_poster_url(raw),
-    }
-
-
 def parse_amount(value: str) -> float | None:
     match = re.search(r"(?i)(\d[\d,.]*)(?:\s*)(k|m)?", value)
     if not match:
@@ -734,79 +650,98 @@ async def collect(
     skip_job_ids: set[str] | None = None,
     skip_company_keys: set[str] | None = None,
 ) -> dict[str, Any]:
+    original = sys.argv[:]
+    sys.argv = [sys.argv[0]]
+    from linkedin_mcp_server.drivers.browser import close_browser, get_or_create_browser
+    from linkedin_mcp_server.scraping import LinkedInExtractor
+
     searches = []
     opportunities = []
     inspected: set[str] = set()
     selected_company_keys = set(skip_company_keys or set())
-    query_job_ids = known_job_ids
-    for query in config["search_queries"]:
-        if query_job_ids is not None:
-            search = {"job_ids": query_job_ids, "url": "known-job-ids"}
-        else:
-            search = await guest_search_jobs(
-                query,
-                config.get("location"),
-                int(config.get("max_pages", 1)),
-                config.get("date_posted"),
-                config.get("job_type"),
-                config.get("experience_level"),
-                config.get("work_type"),
-                bool(config.get("easy_apply", False)),
-                config.get("sort_by", "date"),
-            )
-        searches.append(
-            {
+    try:
+        browser = await asyncio.wait_for(get_or_create_browser(), timeout=90)
+        extractor = LinkedInExtractor(browser.page)
+        query_job_ids = known_job_ids
+        for query in config["search_queries"]:
+            if query_job_ids is not None:
+                search = {"job_ids": query_job_ids, "url": "known-job-ids"}
+            else:
+                try:
+                    search = await extractor.search_jobs(
+                        query,
+                        location=config.get("location"),
+                        max_pages=int(config.get("max_pages", 1)),
+                        date_posted=config.get("date_posted"),
+                        job_type=config.get("job_type"),
+                        experience_level=config.get("experience_level"),
+                        work_type=config.get("work_type"),
+                        easy_apply=bool(config.get("easy_apply", False)),
+                        sort_by=config.get("sort_by", "date"),
+                    )
+                except Exception:
+                    search = await guest_search_jobs(
+                        query,
+                        config.get("location"),
+                        int(config.get("max_pages", 1)),
+                        config.get("date_posted"),
+                        config.get("job_type"),
+                        config.get("experience_level"),
+                        config.get("work_type"),
+                        bool(config.get("easy_apply", False)),
+                        config.get("sort_by", "date"),
+                    )
+            searches.append({
                 "query": query,
                 "url": search.get("url", ""),
                 "jobs_found": len(search.get("job_ids", [])),
-            }
-        )
-        detail_limit = int(config.get("max_job_details_per_query", 10))
-        opportunity_limit = int(config.get("max_opportunities_per_run", 10))
-        for job_id in search.get("job_ids", []):
-            job_id = str(job_id)
-            if job_id in inspected or job_id in (skip_job_ids or set()):
-                continue
-            if len(inspected) >= detail_limit:
-                break
-            inspected.add(job_id)
-            try:
-                details = await asyncio.wait_for(guest_job_details(job_id), timeout=45)
-            except Exception:
-                # A single slow, removed, or rate-limited listing must not
-                # block the rest of the daily batch.
-                continue
-            if not details.get("job_title") or not details.get("company_name"):
-                continue
-            text = "\n".join(
-                (
-                    details["company_name"],
-                    details["job_title"],
-                    "About the job",
-                    details.get("description", ""),
+            })
+            detail_limit = int(config.get("max_job_details_per_query", 10))
+            opportunity_limit = int(config.get("max_opportunities_per_run", 10))
+            for job_id in search.get("job_ids", []):
+                job_id = str(job_id)
+                if job_id in inspected or job_id in (skip_job_ids or set()):
+                    continue
+                if len(inspected) >= detail_limit:
+                    break
+                inspected.add(job_id)
+                try:
+                    details = await asyncio.wait_for(
+                        extractor.scrape_job(job_id),
+                        timeout=60,
+                    )
+                except Exception:
+                    continue
+                text = details.get("sections", {}).get("job_posting", "")
+                classification = classify_job(text, config)
+                if not classification:
+                    continue
+                company_linkedin_url, company_slug = company_reference(details)
+                website = ""
+                if company_slug:
+                    try:
+                        company = await asyncio.wait_for(
+                            extractor.scrape_company(company_slug, {"about"}),
+                            timeout=45,
+                        )
+                        company_linkedin_url = normalize_linkedin_url(company.get("url", "")) or company_linkedin_url
+                        website = company_website(company)
+                    except Exception:
+                        pass
+                domain = website_domain(website)
+                selected_company_key = company_signal_key(
+                    company_domain=domain,
+                    company_linkedin_url=company_linkedin_url,
+                    company_name=classification["company_name"],
+                    job_id=job_id,
                 )
-            )
-            classification = classify_job(text, config)
-            if not classification:
-                continue
-            company_linkedin_url = details.get("company_linkedin_url", "")
-            website = ""
-            domain = website_domain(website)
-            selected_company_key = company_signal_key(
-                company_domain=domain,
-                company_linkedin_url=company_linkedin_url,
-                company_name=classification["company_name"],
-                job_id=job_id,
-            )
-            if selected_company_key in selected_company_keys:
-                continue
-            selected_company_keys.add(selected_company_key)
-            opportunities.append(
-                {
+                if selected_company_key in selected_company_keys:
+                    continue
+                selected_company_keys.add(selected_company_key)
+                opportunities.append({
                     "job_id": job_id,
-                    "job_url": details.get("job_url")
-                    or f"https://www.linkedin.com/jobs/view/{job_id}/",
-                    "poster_linkedin_url": details.get("poster_linkedin_url", ""),
+                    "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
+                    "poster_linkedin_url": await poster_reference_from_loaded_page(browser.page) or poster_reference(details),
                     "company_linkedin_url": company_linkedin_url,
                     "company_website": website,
                     "company_domain": domain,
@@ -814,18 +749,24 @@ async def collect(
                     **compensation_details(text),
                     "text": text,
                     **classification,
-                }
-            )
-            if len(opportunities) >= opportunity_limit:
+                })
+                if len(opportunities) >= opportunity_limit:
+                    break
+            if query_job_ids is not None or len(opportunities) >= opportunity_limit:
                 break
-        if query_job_ids is not None or len(opportunities) >= opportunity_limit:
-            break
-    return {
-        "searches": searches,
-        "jobs_inspected": len(inspected),
-        "opportunities": opportunities,
-        "collector": "linkedin_guest_api",
-    }
+        return {
+            "searches": searches,
+            "jobs_inspected": len(inspected),
+            "opportunities": opportunities,
+        }
+    finally:
+        try:
+            try:
+                await asyncio.wait_for(close_browser(), timeout=30)
+            except Exception:
+                pass
+        finally:
+            sys.argv = original
 
 
 def main() -> None:
