@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import re
 import urllib.request
 from pathlib import Path
@@ -20,6 +21,7 @@ ENRICHMENT_FIELDS = [
     "compensation_period",
     "domain_source",
     "domain_status",
+    "domain_error",
 ]
 
 
@@ -165,6 +167,63 @@ class ApolloCompanyClient:
         return {"domain_status": "unresolved", "domain_source": "apollo_exact_company"}
 
 
+class LemlistCompanyClient:
+    """Resolve exact company names from Lemlist's Companies Database."""
+
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def search(self, company_name: str) -> list[dict[str, Any]]:
+        auth = base64.b64encode(f":{self.api_key}".encode()).decode()
+        request = urllib.request.Request(
+            "https://api.lemlist.com/api/database/companies",
+            data=json.dumps({
+                "filters": [
+                    {"filterId": "currentCompany", "in": [company_name], "out": []},
+                ],
+                "page": 1,
+                "size": 10,
+            }).encode(),
+            method="POST",
+            headers={
+                "Authorization": f"Basic {auth}",
+                "Content-Type": "application/json",
+                "User-Agent": "automation-jobs-linkedin/1.0",
+            },
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8", "ignore"))
+        if isinstance(payload, list):
+            return payload
+        return list(payload.get("results") or [])
+
+    def find_exact(self, company_name: str) -> dict[str, str]:
+        expected = normalize_company_name(company_name)
+        matches: dict[str, dict[str, str]] = {}
+        for company in self.search(company_name):
+            name = str(company.get("company_name") or "")
+            if normalize_company_name(name) != expected:
+                continue
+            domain = domain_from_url(str(
+                company.get("company_domain")
+                or company.get("company_website_url")
+                or ""
+            ))
+            if domain:
+                matches[domain] = {
+                    "company_domain": domain,
+                    "company_website": f"https://{domain}",
+                    "domain_source": "lemlist_database_exact_company",
+                    "domain_status": "resolved",
+                    "domain_error": "",
+                }
+        if len(matches) == 1:
+            return next(iter(matches.values()))
+        if len(matches) > 1:
+            return {"domain_status": "ambiguous", "domain_source": "lemlist_database_exact_company"}
+        return {"domain_status": "unresolved", "domain_source": "lemlist_database_exact_company"}
+
+
 def enrich_company(
     company_name: str,
     company_website: str,
@@ -172,6 +231,7 @@ def enrich_company(
     company_linkedin_url: str = "",
     apollo: ApolloCompanyClient | None = None,
     domain_overrides: dict[str, str] | None = None,
+    lemlist: LemlistCompanyClient | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "company_linkedin_url": str(company_linkedin_url or "").strip(),
@@ -193,16 +253,44 @@ def enrich_company(
             "domain_status": "resolved",
         })
         return result
+    provider_errors: list[str] = []
+    provider_statuses: list[str] = []
+    if lemlist is not None and company_name.strip():
+        try:
+            lemlist_result = lemlist.find_exact(company_name)
+            provider_statuses.append(str(lemlist_result.get("domain_status", "unresolved")))
+            if lemlist_result.get("domain_status") == "resolved":
+                result.update(lemlist_result)
+                return result
+        except Exception as exc:
+            provider_errors.append(f"Lemlist {type(exc).__name__}: {exc}"[:500])
     if apollo is not None and company_name.strip():
         try:
-            result.update(apollo.find_exact(company_name))
+            apollo_result = apollo.find_exact(company_name)
+            provider_statuses.append(str(apollo_result.get("domain_status", "unresolved")))
+            result.update(apollo_result)
+            if provider_errors:
+                result["domain_error"] = " | ".join(provider_errors)[:500]
         except Exception as exc:
-            result.update({
-                "company_domain": "",
-                "domain_source": "apollo_exact_company",
-                "domain_status": "retryable_error",
-                "domain_error": f"{type(exc).__name__}: {exc}"[:500],
-            })
+            provider_errors.append(f"Apollo {type(exc).__name__}: {exc}"[:500])
+            result.update({"domain_source": "lemlist_then_apollo"})
+        if result.get("domain_status") == "resolved":
+            return result
+    if provider_errors:
+        result.update({
+            "company_domain": "",
+            "domain_source": "lemlist_then_apollo",
+            "domain_status": "retryable_error",
+            "domain_error": " | ".join(provider_errors)[:500],
+        })
+        return result
+    if "ambiguous" in provider_statuses:
+        result.update({
+            "company_domain": "",
+            "domain_source": "lemlist_then_apollo",
+            "domain_status": "ambiguous",
+            "domain_error": "",
+        })
         return result
     result.update({"company_domain": "", "domain_source": "", "domain_status": "unresolved"})
     return result

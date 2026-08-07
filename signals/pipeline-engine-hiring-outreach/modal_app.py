@@ -31,6 +31,7 @@ secrets = [
     modal.Secret.from_name("pipeline-engine-hiring-trigger-secret"),
     modal.Secret.from_name("pipeline-engine-hiring-result-callback"),
     modal.Secret.from_name("pipeline-engine-hiring-slack"),
+    modal.Secret.from_name("linkedin-mcp-auth"),
 ]
 
 

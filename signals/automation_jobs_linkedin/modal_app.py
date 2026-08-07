@@ -68,10 +68,12 @@ image = (
 secrets = [
     modal.Secret.from_name("automation-jobs-linkedin-secrets"),
     modal.Secret.from_name("automation-jobs-linkedin-trigger"),
-    # Reuse the existing Apollo credential for exact-company domain recovery.
+    # Reuse the existing Lemlist and Apollo credentials for exact-company
+    # domain recovery. Lemlist Companies Database is primary; Apollo is fallback.
     # The Automation Jobs secret remains authoritative for Google, Slack, and
     # the target spreadsheet.
     modal.Secret.from_name("pipeline-engine-hiring-outreach-secrets"),
+    modal.Secret.from_name("linkedin-mcp-auth"),
 ]
 
 

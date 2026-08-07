@@ -1,5 +1,6 @@
 from enrichment import (
     ApolloCompanyClient,
+    LemlistCompanyClient,
     compensation_details,
     domain_from_url,
     enrich_company,
@@ -31,6 +32,14 @@ class FakeApollo(ApolloCompanyClient):
         return self.organizations
 
 
+class FakeLemlist(LemlistCompanyClient):
+    def __init__(self, companies):
+        self.companies = companies
+
+    def search(self, company_name):
+        return self.companies
+
+
 def test_apollo_requires_one_exact_company_match():
     client = FakeApollo([
         {"name": "Acme Inc", "primary_domain": "acme.com"},
@@ -47,6 +56,34 @@ def test_apollo_rejects_ambiguous_exact_matches():
     result = client.find_exact("Acme")
     assert result["domain_status"] == "ambiguous"
     assert "company_domain" not in result
+
+
+def test_lemlist_requires_one_exact_company_match():
+    client = FakeLemlist([
+        {"company_name": "Acme Inc", "company_domain": "acme.com"},
+        {"company_name": "Acme Holdings", "company_domain": "wrong.com"},
+    ])
+    assert client.find_exact("Acme Inc")["company_domain"] == "acme.com"
+
+
+def test_enrich_company_prefers_lemlist_before_apollo():
+    lemlist = FakeLemlist([{"company_name": "Acme", "company_domain": "acme.com"}])
+    apollo = FakeApollo([{"name": "Acme", "primary_domain": "wrong.com"}])
+
+    result = enrich_company("Acme", "", "", lemlist=lemlist, apollo=apollo)
+
+    assert result["company_domain"] == "acme.com"
+    assert result["domain_source"] == "lemlist_database_exact_company"
+
+
+def test_enrich_company_falls_back_to_apollo_after_lemlist_miss():
+    lemlist = FakeLemlist([])
+    apollo = FakeApollo([{"name": "Acme", "primary_domain": "acme.com"}])
+
+    result = enrich_company("Acme", "", "", lemlist=lemlist, apollo=apollo)
+
+    assert result["company_domain"] == "acme.com"
+    assert result["domain_source"] == "apollo_exact_company"
 
 
 def test_enrich_company_prefers_captured_website_over_apollo():

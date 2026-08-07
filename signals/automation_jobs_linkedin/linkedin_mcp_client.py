@@ -17,6 +17,9 @@ DEFAULT_ENDPOINT = (
 class LinkedInMCPClient:
     def __init__(self, endpoint: str | None = None) -> None:
         self.endpoint = (endpoint or os.environ.get("LINKEDIN_MCP_URL") or DEFAULT_ENDPOINT).strip()
+        self.auth_token = os.environ.get("LINKEDIN_MCP_TOKEN", "").strip()
+        if not self.auth_token:
+            raise RuntimeError("LINKEDIN_MCP_TOKEN is not configured")
         self.session_id = ""
         self.request_id = 0
         self.last_call_at = 0.0
@@ -25,6 +28,7 @@ class LinkedInMCPClient:
 
     def _post(self, payload: dict[str, Any], *, expect_response: bool = True) -> dict[str, Any] | None:
         headers = {
+            "Authorization": f"Bearer {self.auth_token}",
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",
         }

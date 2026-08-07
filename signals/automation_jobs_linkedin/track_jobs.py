@@ -16,7 +16,13 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
-from enrichment import ApolloCompanyClient, ENRICHMENT_FIELDS, enrich_company, load_domain_overrides
+from enrichment import (
+    ApolloCompanyClient,
+    ENRICHMENT_FIELDS,
+    LemlistCompanyClient,
+    enrich_company,
+    load_domain_overrides,
+)
 from linkedin_mcp_client import LinkedInMCPClient, LinkedInMCPExtractor
 
 ROOT = Path(__file__).resolve().parent
@@ -1022,6 +1028,8 @@ def main() -> None:
     profile = validate_config(config, args.config)
     source_profile = config.get("relevance", {}).get("source_profile", "")
     result = asyncio.run(collect(config))
+    lemlist_key = os.environ.get("LEMLIST_API_KEY", "").strip()
+    lemlist = LemlistCompanyClient(lemlist_key) if lemlist_key else None
     apollo_key = os.environ.get("APOLLO_API_KEY", "").strip()
     apollo = ApolloCompanyClient(apollo_key) if apollo_key else None
     domain_overrides = load_domain_overrides()
@@ -1060,8 +1068,9 @@ def main() -> None:
             job.get("company_website", ""),
             description,
             job.get("company_linkedin_url", ""),
-            apollo,
-            domain_overrides,
+            lemlist=lemlist,
+            apollo=apollo,
+            domain_overrides=domain_overrides,
         )
         rows.append({
             "detected_at": detected_at,

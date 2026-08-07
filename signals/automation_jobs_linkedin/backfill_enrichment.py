@@ -12,8 +12,13 @@ from typing import Any
 import gspread
 from google.oauth2.service_account import Credentials
 
-from enrichment import ApolloCompanyClient, ENRICHMENT_FIELDS, enrich_company, load_domain_overrides
-from track_jobs import _guest_job_details, website_from_public_company_page
+from enrichment import (
+    ApolloCompanyClient,
+    ENRICHMENT_FIELDS,
+    LemlistCompanyClient,
+    enrich_company,
+    load_domain_overrides,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -40,6 +45,8 @@ def ensure_columns(worksheet, headers: list[str]) -> list[str]:
         return headers
     start = len(headers) + 1
     end = len(headers) + len(missing)
+    if end > worksheet.col_count:
+        worksheet.add_cols(end - worksheet.col_count)
     worksheet.update(
         range_name=f"{column_letter(start)}1:{column_letter(end)}1",
         values=[missing],
@@ -49,26 +56,20 @@ def ensure_columns(worksheet, headers: list[str]) -> list[str]:
 
 async def enrich_row(
     row: dict[str, Any],
+    lemlist: LemlistCompanyClient | None,
     apollo: ApolloCompanyClient | None,
     domain_overrides: dict[str, str],
 ) -> dict[str, Any]:
     website = str(row.get("company_website", "") or "").strip()
     company_linkedin_url = str(row.get("company_linkedin_url", "") or "").strip()
-    job_id = str(row.get("job_id", "") or "").strip()
-    if (not website or not company_linkedin_url) and job_id:
-        details = await _guest_job_details(job_id)
-        if not company_linkedin_url:
-            company_linkedin_url = str(details.get("company_url", "") or "").strip()
-        if not website and company_linkedin_url:
-            website = await website_from_public_company_page(company_linkedin_url)
-
     updates = enrich_company(
         str(row.get("company_name", "") or "").strip(),
         website,
         str(row.get("job_description", "") or ""),
         company_linkedin_url,
-        apollo,
-        domain_overrides,
+        lemlist=lemlist,
+        apollo=apollo,
+        domain_overrides=domain_overrides,
     )
     if website:
         updates["company_website"] = website
@@ -88,6 +89,8 @@ async def backfill(worksheet, dry_run: bool, limit: int | None) -> dict[str, Any
     if not dry_run:
         headers = ensure_columns(worksheet, headers)
 
+    lemlist_key = os.environ.get("LEMLIST_API_KEY", "").strip()
+    lemlist = LemlistCompanyClient(lemlist_key) if lemlist_key else None
     apollo_key = os.environ.get("APOLLO_API_KEY", "").strip()
     apollo = ApolloCompanyClient(apollo_key) if apollo_key else None
     domain_overrides = load_domain_overrides()
@@ -109,7 +112,7 @@ async def backfill(worksheet, dry_run: bool, limit: int | None) -> dict[str, Any
             break
         summary["rows_seen"] += 1
         try:
-            updates = await enrich_row(row, apollo, domain_overrides)
+            updates = await enrich_row(row, lemlist, apollo, domain_overrides)
         except Exception as exc:
             summary["errors"].append({"row": row_number, "error": f"{type(exc).__name__}: {exc}"[:500]})
             continue

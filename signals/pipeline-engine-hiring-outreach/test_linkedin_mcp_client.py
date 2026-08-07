@@ -1,6 +1,14 @@
 import asyncio
 
+import pytest
+
 from linkedin_mcp_client import LinkedInMCPClient, LinkedInMCPExtractor
+
+
+def test_client_requires_auth_token(monkeypatch):
+    monkeypatch.delenv("LINKEDIN_MCP_TOKEN", raising=False)
+    with pytest.raises(RuntimeError, match="LINKEDIN_MCP_TOKEN"):
+        LinkedInMCPClient()
 
 
 def test_content_text_extracts_mcp_text_blocks():
