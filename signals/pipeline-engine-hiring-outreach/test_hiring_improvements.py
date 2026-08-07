@@ -4,7 +4,13 @@ import asyncio
 import json
 from pathlib import Path
 
-from collect_hiring_signals import classify_job, compensation_details, guest_search_jobs
+from collect_hiring_signals import (
+    classify_job,
+    collect,
+    compensation_details,
+    guest_job_details,
+    guest_search_jobs,
+)
 from extract_contacts import (
     MemorySheet,
     decision_maker_titles_for_company,
@@ -17,8 +23,17 @@ from recover_company_domains import recover_domains
 def sourcing_config():
     return {
         "role_families": {
-            "direct_outbound": {"score": 100, "title_terms": ["sales development representative"], "offer_angle": "outbound"},
-            "growth_demand": {"score": 65, "title_terms": ["growth manager"], "offer_angle": "growth", "require_evidence": True},
+            "direct_outbound": {
+                "score": 100,
+                "title_terms": ["sales development representative"],
+                "offer_angle": "outbound",
+            },
+            "growth_demand": {
+                "score": 65,
+                "title_terms": ["growth manager"],
+                "offer_angle": "growth",
+                "require_evidence": True,
+            },
         },
         "exclude_title_terms": ["intern"],
         "exclude_company_terms": ["staffing"],
@@ -61,17 +76,19 @@ def test_hiring_guest_search_maps_structured_filters(monkeypatch):
 
     monkeypatch.setattr("collect_hiring_signals.urlopen", fake_urlopen)
 
-    result = asyncio.run(guest_search_jobs(
-        "sales development representative",
-        "United States",
-        1,
-        "past_24_hours",
-        "full_time,contract",
-        "entry,associate",
-        "remote",
-        True,
-        "date",
-    ))
+    result = asyncio.run(
+        guest_search_jobs(
+            "sales development representative",
+            "United States",
+            1,
+            "past_24_hours",
+            "full_time,contract",
+            "entry,associate",
+            "remote",
+            True,
+            "date",
+        )
+    )
 
     assert result["job_ids"] == ["1234567890"]
     url = captured_urls[0]
@@ -84,9 +101,73 @@ def test_hiring_guest_search_maps_structured_filters(monkeypatch):
     assert "sortBy=DD" in url
 
 
+def test_guest_job_details_parses_public_job_card(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def read(self):
+            return b"""\
+                <h2 class="top-card-layout__title">Sales Development Representative</h2>
+                <a class="topcard__org-name-link" href="https://www.linkedin.com/company/acme?trk=job">Acme</a>
+                <div class="show-more-less-html__markup">Own outbound prospecting and CRM.</div>
+                <section class="hirer-card"><a href="https://www.linkedin.com/in/jane-recruiter?trk=job">Jane</a></section>
+            """
+
+    monkeypatch.setattr(
+        "collect_hiring_signals.urlopen", lambda request, timeout: FakeResponse()
+    )
+
+    details = asyncio.run(guest_job_details("1234567890"))
+
+    assert details["job_title"] == "Sales Development Representative"
+    assert details["company_name"] == "Acme"
+    assert details["company_linkedin_url"] == "https://www.linkedin.com/company/acme/"
+    assert (
+        details["poster_linkedin_url"] == "https://www.linkedin.com/in/jane-recruiter/"
+    )
+    assert details["description"] == "Own outbound prospecting and CRM."
+
+
+def test_collect_uses_guest_details_without_browser_auth(monkeypatch):
+    async def fake_details(job_id):
+        return {
+            "job_url": f"https://www.linkedin.com/jobs/view/{job_id}/",
+            "job_title": "Sales Development Representative",
+            "company_name": "Acme",
+            "company_linkedin_url": "https://www.linkedin.com/company/acme/",
+            "description": "Own outbound prospecting and CRM.",
+            "poster_linkedin_url": "",
+        }
+
+    monkeypatch.setattr("collect_hiring_signals.guest_job_details", fake_details)
+
+    result = asyncio.run(
+        collect(
+            sourcing_config()
+            | {"search_queries": ["sales development representative"]},
+            ["123"],
+        )
+    )
+
+    assert result["collector"] == "linkedin_guest_api"
+    assert result["jobs_inspected"] == 1
+    assert result["opportunities"][0]["company_name"] == "Acme"
+
+
 def test_growth_role_requires_pipeline_evidence():
-    assert classify_job("Acme\nGrowth Manager\nOwn partnerships and events", sourcing_config()) is None
-    assert classify_job("Acme\nGrowth Manager\nOwn outbound prospecting and CRM", sourcing_config())
+    assert (
+        classify_job(
+            "Acme\nGrowth Manager\nOwn partnerships and events", sourcing_config()
+        )
+        is None
+    )
+    assert classify_job(
+        "Acme\nGrowth Manager\nOwn outbound prospecting and CRM", sourcing_config()
+    )
 
 
 def test_compensation_ignores_pipeline_kpis():
@@ -103,23 +184,45 @@ def test_compensation_ignores_pipeline_kpis():
 
 def test_staffing_company_and_commission_only_role_are_rejected():
     config = sourcing_config()
-    assert classify_job("Acme Staffing\nSales Development Representative\nOutbound", config) is None
-    assert classify_job("Acme\nSales Development Representative\nCommission only outbound", config) is None
+    assert (
+        classify_job(
+            "Acme Staffing\nSales Development Representative\nOutbound", config
+        )
+        is None
+    )
+    assert (
+        classify_job(
+            "Acme\nSales Development Representative\nCommission only outbound", config
+        )
+        is None
+    )
 
 
 def test_role_family_selects_relevant_decision_makers():
     config = {
         "decision_maker_titles": ["founder"],
-        "decision_maker_titles_by_role_family": {"growth_demand": ["head of growth", "cmo"]},
+        "decision_maker_titles_by_role_family": {
+            "growth_demand": ["head of growth", "cmo"]
+        },
     }
-    assert decision_maker_titles_for_company({"hiring_role_family": "growth_demand"}, config) == ["head of growth", "cmo"]
-    assert decision_maker_titles_for_company({"hiring_role_family": "unknown"}, config) == ["founder"]
+    assert decision_maker_titles_for_company(
+        {"hiring_role_family": "growth_demand"}, config
+    ) == ["head of growth", "cmo"]
+    assert decision_maker_titles_for_company(
+        {"hiring_role_family": "unknown"}, config
+    ) == ["founder"]
 
 
 def test_irrelevant_titles_do_not_match_outbound_decision_makers():
     titles = [
-        "founder", "co-founder", "ceo", "chief revenue officer", "cro",
-        "vp sales", "head of sales", "sales director",
+        "founder",
+        "co-founder",
+        "ceo",
+        "chief revenue officer",
+        "cro",
+        "vp sales",
+        "head of sales",
+        "sales director",
     ]
     assert not matches_decision_maker_title("Senior Product Designer", titles)
     assert not matches_decision_maker_title("Technical Product Owner", titles)
@@ -130,15 +233,43 @@ def test_irrelevant_titles_do_not_match_outbound_decision_makers():
 
 def test_delivery_retry_is_bounded_and_time_aware():
     future = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
-    assert not retry_due({"status": "delivery_failed", "delivery_attempts": "1", "delivery_next_retry_at": future}, 4)
-    assert retry_due({"status": "delivery_failed", "delivery_attempts": "1", "delivery_next_retry_at": ""}, 4)
-    assert not retry_due({"status": "delivery_failed", "delivery_attempts": "4", "delivery_next_retry_at": ""}, 4)
+    assert not retry_due(
+        {
+            "status": "delivery_failed",
+            "delivery_attempts": "1",
+            "delivery_next_retry_at": future,
+        },
+        4,
+    )
+    assert retry_due(
+        {
+            "status": "delivery_failed",
+            "delivery_attempts": "1",
+            "delivery_next_retry_at": "",
+        },
+        4,
+    )
+    assert not retry_due(
+        {
+            "status": "delivery_failed",
+            "delivery_attempts": "4",
+            "delivery_next_retry_at": "",
+        },
+        4,
+    )
 
 
 def test_domain_recovery_derives_domain_from_known_website():
     sheet = MemorySheet(
         ["status", "company_name", "company_website", "company_domain"],
-        [{"status": "needs_company_domain", "company_name": "Acme", "company_website": "https://www.acme.com/about", "company_domain": ""}],
+        [
+            {
+                "status": "needs_company_domain",
+                "company_name": "Acme",
+                "company_website": "https://www.acme.com/about",
+                "company_domain": "",
+            }
+        ],
     )
     result = recover_domains(sheet, client=None, dry_run=False, limit=None)
     assert result["recovered_from_website"] == 1
@@ -149,7 +280,14 @@ def test_domain_recovery_derives_domain_from_known_website():
 def test_domain_recovery_dry_run_does_not_change_schema_or_rows():
     sheet = MemorySheet(
         ["status", "company_name", "company_website", "company_domain"],
-        [{"status": "needs_company_domain", "company_name": "Acme", "company_website": "https://www.acme.com", "company_domain": ""}],
+        [
+            {
+                "status": "needs_company_domain",
+                "company_name": "Acme",
+                "company_website": "https://www.acme.com",
+                "company_domain": "",
+            }
+        ],
     )
     original_headers = list(sheet.headers)
     original_row = dict(sheet.rows()[0].data)

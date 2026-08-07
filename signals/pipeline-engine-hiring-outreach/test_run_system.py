@@ -5,30 +5,38 @@ import run_system
 
 
 def test_result_metrics_counts_feeder_source_errors():
-    metrics = run_system.result_metrics([{
-        "step": "feed_existing_contacts",
-        "result": {
-            "plugged": 2,
-            "failed": 1,
-            "source_errors": [{"source": "hiring", "error": "sheet unavailable"}],
-        },
-    }])
+    metrics = run_system.result_metrics(
+        [
+            {
+                "step": "feed_existing_contacts",
+                "result": {
+                    "plugged": 2,
+                    "failed": 1,
+                    "source_errors": [
+                        {"source": "hiring", "error": "sheet unavailable"}
+                    ],
+                },
+            }
+        ]
+    )
 
     assert metrics["contacts_plugged"] == 2
     assert metrics["failures"] == 2
 
 
 def test_slack_message_reports_success_metrics():
-    message = run_system.slack_message({
-        "status": "success",
-        "finished_at": "2026-08-06T12:00:00+00:00",
-        "metrics": {
-            "companies_inserted": 2,
-            "contacts_inserted": 5,
-            "contacts_plugged": 4,
-            "failures": 0,
-        },
-    })
+    message = run_system.slack_message(
+        {
+            "status": "success",
+            "finished_at": "2026-08-06T12:00:00+00:00",
+            "metrics": {
+                "companies_inserted": 2,
+                "contacts_inserted": 5,
+                "contacts_plugged": 4,
+                "failures": 0,
+            },
+        }
+    )
 
     assert "completed" in message
     assert "Companies added: 2" in message
@@ -36,26 +44,45 @@ def test_slack_message_reports_success_metrics():
 
 
 def test_slack_message_labels_dry_run():
-    message = run_system.slack_message({
-        "status": "success",
-        "dry_run": True,
-        "metrics": {},
-    })
+    message = run_system.slack_message(
+        {
+            "status": "success",
+            "dry_run": True,
+            "metrics": {},
+        }
+    )
 
     assert "dry run completed" in message
 
 
+def test_slack_message_labels_failed_dry_run():
+    message = run_system.slack_message(
+        {
+            "status": "error",
+            "dry_run": True,
+            "metrics": {},
+            "steps": [],
+        }
+    )
+
+    assert "dry run failed" in message
+
+
 def test_slack_message_reports_failed_step():
-    message = run_system.slack_message({
-        "status": "error",
-        "finished_at": "2026-08-06T12:00:00+00:00",
-        "metrics": {},
-        "steps": [{
-            "step": "collect_hiring_signals",
-            "ok": False,
-            "stderr": "No authentication found",
-        }],
-    })
+    message = run_system.slack_message(
+        {
+            "status": "error",
+            "finished_at": "2026-08-06T12:00:00+00:00",
+            "metrics": {},
+            "steps": [
+                {
+                    "step": "collect_hiring_signals",
+                    "ok": False,
+                    "stderr": "No authentication found",
+                }
+            ],
+        }
+    )
 
     assert "failed" in message
     assert "Error step: collect_hiring_signals" in message
@@ -110,7 +137,9 @@ def test_dry_run_is_propagated_to_sourcing(monkeypatch, capsys):
 
     run_system.main()
 
-    sourcing = next(command for name, command in commands if name == "collect_hiring_signals")
+    sourcing = next(
+        command for name, command in commands if name == "collect_hiring_signals"
+    )
     assert "--dry-run" in sourcing
     assert all(
         "--dry-run" in command

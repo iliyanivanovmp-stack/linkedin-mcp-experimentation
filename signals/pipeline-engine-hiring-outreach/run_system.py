@@ -29,9 +29,13 @@ def load_env() -> dict[str, str]:
 
 
 def run(name: str, command: list[str], env: dict[str, str]) -> dict[str, object]:
-    completed = subprocess.run(command, cwd=ROOT, env=env, text=True, capture_output=True, check=False)
+    completed = subprocess.run(
+        command, cwd=ROOT, env=env, text=True, capture_output=True, check=False
+    )
     try:
-        result: object = json.loads(completed.stdout) if completed.stdout.strip() else None
+        result: object = (
+            json.loads(completed.stdout) if completed.stdout.strip() else None
+        )
     except json.JSONDecodeError:
         result = completed.stdout.strip()
     return {
@@ -44,7 +48,12 @@ def run(name: str, command: list[str], env: dict[str, str]) -> dict[str, object]
 
 
 def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
-    metrics: dict[str, object] = {"companies_inserted": 0, "contacts_inserted": 0, "contacts_plugged": 0, "failures": 0}
+    metrics: dict[str, object] = {
+        "companies_inserted": 0,
+        "contacts_inserted": 0,
+        "contacts_plugged": 0,
+        "failures": 0,
+    }
     for step in results:
         result = step.get("result")
         if not isinstance(result, dict):
@@ -56,8 +65,12 @@ def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
         elif step.get("step") == "extract_contacts":
             metrics["contacts_inserted"] = int(result.get("contacts_inserted", 0) or 0)
         elif str(step.get("step", "")).startswith("feed_"):
-            metrics["contacts_plugged"] = int(metrics["contacts_plugged"]) + int(result.get("plugged", 0) or 0)
-            metrics["failures"] = int(metrics["failures"]) + int(result.get("failed", 0) or 0)
+            metrics["contacts_plugged"] = int(metrics["contacts_plugged"]) + int(
+                result.get("plugged", 0) or 0
+            )
+            metrics["failures"] = int(metrics["failures"]) + int(
+                result.get("failed", 0) or 0
+            )
             source_errors = result.get("source_errors") or []
             if isinstance(source_errors, list):
                 metrics["failures"] = int(metrics["failures"]) + len(source_errors)
@@ -112,6 +125,8 @@ def slack_message(payload: dict[str, object]) -> str:
         heading = ":test_tube: *Pipeline Engine Hiring Outreach dry run completed*"
     elif status == "success":
         heading = ":white_check_mark: *Pipeline Engine Hiring Outreach completed*"
+    elif dry_run:
+        heading = ":test_tube: *Pipeline Engine Hiring Outreach dry run failed*"
     else:
         heading = ":rotating_light: *Pipeline Engine Hiring Outreach failed*"
     lines = [
@@ -132,15 +147,18 @@ def slack_message(payload: dict[str, object]) -> str:
     else:
         failed_step = next(
             (
-                step for step in payload.get("steps", [])
+                step
+                for step in payload.get("steps", [])
                 if isinstance(step, dict) and not step.get("ok")
             ),
             {},
         )
-        lines.extend([
-            f"Error step: {failed_step.get('step', 'unknown')}",
-            f"Error: {failed_step.get('stderr', 'No error details')}",
-        ])
+        lines.extend(
+            [
+                f"Error step: {failed_step.get('step', 'unknown')}",
+                f"Error: {failed_step.get('stderr', 'No error details')}",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -180,15 +198,20 @@ def main() -> None:
     parser.add_argument("--skip-email-enrichment", action="store_true")
     args = parser.parse_args()
     dry = ["--dry-run"] if args.dry_run else []
-    company_limit = ["--limit", str(args.company_limit)] if args.company_limit is not None else []
+    company_limit = (
+        ["--limit", str(args.company_limit)] if args.company_limit is not None else []
+    )
     contact_limit = ["--limit", "30"]
     env = load_env()
     feeder_command = [
         sys.executable,
         str(SYSTEM_DIR / "feed_lemlist.py"),
-        "--config", str(FEEDER_CONFIG),
-        "--source", "hiring",
-        "--source", "hiring_linkedin_only",
+        "--config",
+        str(FEEDER_CONFIG),
+        "--source",
+        "hiring",
+        "--source",
+        "hiring_linkedin_only",
         *dry,
         *contact_limit,
     ]
@@ -198,28 +221,121 @@ def main() -> None:
         ("feed_existing_contacts", feeder_command),
     ]
     if not args.skip_sourcing:
-        sourcing_python = env.get("LINKEDIN_PYTHON", sys.executable)
-        sourcing_limit = ["--limit", str(args.sourcing_limit)] if args.sourcing_limit is not None else []
-        commands.append(("collect_hiring_signals", [
-            sourcing_python,
-            str(SYSTEM_DIR / "collect_hiring_signals.py"),
-            "--config", str(SYSTEM_DIR / "sourcing_config.json"),
-            "--system-config", str(CONFIG),
-            *dry,
-            *sourcing_limit,
-        ]))
-    commands.extend([
-        ("recover_company_domains", [sys.executable, str(SYSTEM_DIR / "recover_company_domains.py"), "--config", str(CONFIG), *dry, *company_limit]),
-        ("prepare_context", [sys.executable, str(SYSTEM_DIR / "prepare_context.py"), "--config", str(CONFIG), *dry, *company_limit]),
-        ("extract_contacts", [sys.executable, str(SYSTEM_DIR / "extract_contacts.py"), "--config", str(CONFIG), "--retry-failed", *dry, *company_limit]),
-    ])
+        sourcing_limit = (
+            ["--limit", str(args.sourcing_limit)]
+            if args.sourcing_limit is not None
+            else []
+        )
+        commands.append(
+            (
+                "collect_hiring_signals",
+                [
+                    sys.executable,
+                    str(SYSTEM_DIR / "collect_hiring_signals.py"),
+                    "--config",
+                    str(SYSTEM_DIR / "sourcing_config.json"),
+                    "--system-config",
+                    str(CONFIG),
+                    *dry,
+                    *sourcing_limit,
+                ],
+            )
+        )
+    commands.extend(
+        [
+            (
+                "recover_company_domains",
+                [
+                    sys.executable,
+                    str(SYSTEM_DIR / "recover_company_domains.py"),
+                    "--config",
+                    str(CONFIG),
+                    *dry,
+                    *company_limit,
+                ],
+            ),
+            (
+                "prepare_context",
+                [
+                    sys.executable,
+                    str(SYSTEM_DIR / "prepare_context.py"),
+                    "--config",
+                    str(CONFIG),
+                    *dry,
+                    *company_limit,
+                ],
+            ),
+            (
+                "extract_contacts",
+                [
+                    sys.executable,
+                    str(SYSTEM_DIR / "extract_contacts.py"),
+                    "--config",
+                    str(CONFIG),
+                    "--retry-failed",
+                    *dry,
+                    *company_limit,
+                ],
+            ),
+        ]
+    )
     if not args.skip_email_enrichment:
-        commands.extend([
-            ("email_enrichment_start", [sys.executable, str(SYSTEM_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "start", *dry, *contact_limit]),
-            ("email_enrichment_poll", [sys.executable, str(SYSTEM_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "poll", *dry, *contact_limit]),
-            ("apollo_email_fallback", [sys.executable, str(SYSTEM_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "apollo", *dry, *contact_limit]),
-            ("finalize_linkedin_only", [sys.executable, str(SYSTEM_DIR / "enrich_missing_emails.py"), "--config", str(CONFIG), "--mode", "finalize-linkedin-only", *dry, *contact_limit]),
-        ])
+        commands.extend(
+            [
+                (
+                    "email_enrichment_start",
+                    [
+                        sys.executable,
+                        str(SYSTEM_DIR / "enrich_missing_emails.py"),
+                        "--config",
+                        str(CONFIG),
+                        "--mode",
+                        "start",
+                        *dry,
+                        *contact_limit,
+                    ],
+                ),
+                (
+                    "email_enrichment_poll",
+                    [
+                        sys.executable,
+                        str(SYSTEM_DIR / "enrich_missing_emails.py"),
+                        "--config",
+                        str(CONFIG),
+                        "--mode",
+                        "poll",
+                        *dry,
+                        *contact_limit,
+                    ],
+                ),
+                (
+                    "apollo_email_fallback",
+                    [
+                        sys.executable,
+                        str(SYSTEM_DIR / "enrich_missing_emails.py"),
+                        "--config",
+                        str(CONFIG),
+                        "--mode",
+                        "apollo",
+                        *dry,
+                        *contact_limit,
+                    ],
+                ),
+                (
+                    "finalize_linkedin_only",
+                    [
+                        sys.executable,
+                        str(SYSTEM_DIR / "enrich_missing_emails.py"),
+                        "--config",
+                        str(CONFIG),
+                        "--mode",
+                        "finalize-linkedin-only",
+                        *dry,
+                        *contact_limit,
+                    ],
+                ),
+            ]
+        )
     commands.append(("feed_new_contacts", feeder_command))
 
     results = []
@@ -228,11 +344,25 @@ def main() -> None:
         result = run(name, command, env)
         results.append(result)
         if not result["ok"]:
-            payload = {"status": "error", "started_at": started_at.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "metrics": result_metrics(results), "steps": results}
+            payload = {
+                "status": "error",
+                "dry_run": args.dry_run,
+                "started_at": started_at.isoformat(),
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "metrics": result_metrics(results),
+                "steps": results,
+            }
             payload["notifications"] = notify_result(env, payload)
             print(json.dumps(payload, indent=2))
             raise SystemExit(1)
-    payload = {"status": "success", "dry_run": args.dry_run, "started_at": started_at.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(), "metrics": result_metrics(results), "steps": results}
+    payload = {
+        "status": "success",
+        "dry_run": args.dry_run,
+        "started_at": started_at.isoformat(),
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "metrics": result_metrics(results),
+        "steps": results,
+    }
     payload["notifications"] = notify_result(env, payload)
     print(json.dumps(payload, indent=2))
 

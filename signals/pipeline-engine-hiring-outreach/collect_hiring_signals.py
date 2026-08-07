@@ -9,7 +9,6 @@ import html
 import json
 import os
 import re
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -53,7 +52,9 @@ FIELDS = [
 
 
 def clean_lines(text: str) -> list[str]:
-    return [re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()]
+    return [
+        re.sub(r"\s+", " ", line).strip() for line in text.splitlines() if line.strip()
+    ]
 
 
 def job_identity(text: str) -> tuple[str, str]:
@@ -140,32 +141,46 @@ def google_client():
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     service_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     if service_json:
-        return gspread.authorize(Credentials.from_service_account_info(json.loads(service_json), scopes=scopes))
+        return gspread.authorize(
+            Credentials.from_service_account_info(
+                json.loads(service_json), scopes=scopes
+            )
+        )
     credentials_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
     if not credentials_path:
-        raise RuntimeError("Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS")
+        raise RuntimeError(
+            "Set GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS"
+        )
     return gspread.service_account(filename=credentials_path)
 
 
-def append_google_rows(system_config: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, int]:
+def append_google_rows(
+    system_config: dict[str, Any], rows: list[dict[str, Any]]
+) -> dict[str, int]:
     if not rows:
         return {"received": 0, "inserted": 0, "duplicates_skipped": 0}
-    worksheet = google_client().open_by_key(str(system_config["spreadsheet_id"])).worksheet(
-        str(system_config["companies_worksheet"])
+    worksheet = (
+        google_client()
+        .open_by_key(str(system_config["spreadsheet_id"]))
+        .worksheet(str(system_config["companies_worksheet"]))
     )
     values = worksheet.get_all_values()
     headers = values[0] if values else []
     missing_headers = [field for field in FIELDS if field not in headers]
     if missing_headers:
         headers.extend(missing_headers)
-        worksheet.update(range_name=f"A1:{_column_letter(len(headers))}1", values=[headers])
+        worksheet.update(
+            range_name=f"A1:{_column_letter(len(headers))}1", values=[headers]
+        )
     job_index = headers.index("job_id")
     existing_ids = {
         str(row[job_index]).strip()
         for row in values[1:]
         if len(row) > job_index and str(row[job_index]).strip()
     }
-    fresh = [row for row in rows if str(row.get("job_id", "")).strip() not in existing_ids]
+    fresh = [
+        row for row in rows if str(row.get("job_id", "")).strip() not in existing_ids
+    ]
     if fresh:
         worksheet.append_rows(
             [[str(row.get(header, "") or "") for header in headers] for row in fresh],
@@ -179,8 +194,10 @@ def append_google_rows(system_config: dict[str, Any], rows: list[dict[str, Any]]
 
 
 def google_existing_job_ids(system_config: dict[str, Any]) -> set[str]:
-    worksheet = google_client().open_by_key(str(system_config["spreadsheet_id"])).worksheet(
-        str(system_config["companies_worksheet"])
+    worksheet = (
+        google_client()
+        .open_by_key(str(system_config["spreadsheet_id"]))
+        .worksheet(str(system_config["companies_worksheet"]))
     )
     headers = worksheet.row_values(1)
     if "job_id" not in headers:
@@ -234,7 +251,9 @@ def daily_company_keys(
     job_index = headers.index("job_id")
     signal_index = headers.index("signal_type") if "signal_type" in headers else None
     company_index = headers.index("company_name") if "company_name" in headers else None
-    domain_index = headers.index("company_domain") if "company_domain" in headers else None
+    domain_index = (
+        headers.index("company_domain") if "company_domain" in headers else None
+    )
     linkedin_index = (
         headers.index("company_linkedin_url")
         if "company_linkedin_url" in headers
@@ -249,7 +268,9 @@ def daily_company_keys(
         if len(row) <= detected_index or not str(row[detected_index]).strip():
             continue
         try:
-            detected = datetime.fromisoformat(str(row[detected_index]).strip().replace("Z", "+00:00"))
+            detected = datetime.fromisoformat(
+                str(row[detected_index]).strip().replace("Z", "+00:00")
+            )
         except ValueError:
             continue
         if detected.tzinfo is None:
@@ -293,8 +314,10 @@ def google_daily_company_keys(
     *,
     now: datetime | None = None,
 ) -> set[str]:
-    worksheet = google_client().open_by_key(str(system_config["spreadsheet_id"])).worksheet(
-        str(system_config["companies_worksheet"])
+    worksheet = (
+        google_client()
+        .open_by_key(str(system_config["spreadsheet_id"]))
+        .worksheet(str(system_config["companies_worksheet"]))
     )
     return daily_company_keys(
         worksheet.get_all_values(),
@@ -372,12 +395,18 @@ async def guest_search_jobs(
             params["f_EA"] = "true"
         if sort_by:
             params["sortBy"] = sort_map.get(sort_by, sort_by)
-        url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?" + urlencode(params)
-        request = Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-        })
+        url = (
+            "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
+            + urlencode(params)
+        )
+        request = Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
         with urlopen(request, timeout=30) as response:
             return url, response.read().decode("utf-8", "ignore")
 
@@ -403,7 +432,96 @@ async def guest_search_jobs(
             page_texts.append(text)
         if len(page_ids) < 25:
             break
-    return {"url": first_url, "job_ids": job_ids, "sections": {"search_results": "\n---\n".join(page_texts)}}
+    return {
+        "url": first_url,
+        "job_ids": job_ids,
+        "sections": {"search_results": "\n---\n".join(page_texts)},
+    }
+
+
+def _guest_text(raw: str, tag: str, class_name: str) -> str:
+    match = re.search(
+        rf"<{tag}[^>]*\b{re.escape(class_name)}[^>]*>(.*?)</{tag}>",
+        raw,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        return ""
+    value = re.sub(r"<[^>]+>", " ", match.group(1))
+    return re.sub(r"\s+", " ", html.unescape(value)).strip()
+
+
+def _guest_description(raw: str) -> str:
+    match = re.search(
+        r'<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
+        raw,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        return ""
+    value = re.sub(r"(?i)<br\s*/?>", "\n", match.group(1))
+    value = re.sub(r"(?i)</(?:p|li|h[1-6])>", "\n", value)
+    value = re.sub(r"<[^>]+>", " ", value)
+    return "\n".join(clean_lines(html.unescape(value)))
+
+
+def _guest_poster_url(raw: str) -> str:
+    for pattern in (
+        r'<(?:section|div)[^>]*class="[^"]*(?:hirer-card|hiring-team|message-the-recruiter)[^"]*"[^>]*>(.*?)</(?:section|div)>',
+        r"(?:(?:Meet|Contact|Message)\s+the\s+hiring\s+team|Who you can reach out to)(.{0,4000})",
+    ):
+        card = re.search(pattern, raw, re.DOTALL | re.IGNORECASE)
+        if not card:
+            continue
+        profile = re.search(
+            r'href=["\']((?:https://(?:www\.)?linkedin\.com)?/in/[^"\'?#]+)',
+            card.group(1),
+            re.IGNORECASE,
+        )
+        if profile:
+            return normalize_linkedin_url(html.unescape(profile.group(1)))
+    return ""
+
+
+async def guest_job_details(job_id: str) -> dict[str, str]:
+    """Fetch one public job without an authenticated LinkedIn browser session."""
+
+    def fetch() -> str:
+        request = Request(
+            f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        with urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8", "ignore")
+
+    raw = await asyncio.to_thread(fetch)
+    title = _guest_text(raw, "h2", "top-card-layout__title") or _guest_text(
+        raw, "h1", "top-card-layout__title"
+    )
+    company = _guest_text(raw, "a", "topcard__org-name-link") or _guest_text(
+        raw, "span", "topcard__org-name-link"
+    )
+    description = _guest_description(raw)
+    company_match = re.search(
+        r'href=["\']((?:https://(?:www\.)?linkedin\.com)?/company/[^"\'?#]+)',
+        raw,
+        re.IGNORECASE,
+    )
+    company_url = normalize_linkedin_url(
+        html.unescape(company_match.group(1)) if company_match else ""
+    )
+    return {
+        "job_url": f"https://www.linkedin.com/jobs/view/{job_id}/",
+        "job_title": title,
+        "company_name": company,
+        "company_linkedin_url": company_url,
+        "description": description,
+        "poster_linkedin_url": _guest_poster_url(raw),
+    }
 
 
 def parse_amount(value: str) -> float | None:
@@ -416,9 +534,7 @@ def parse_amount(value: str) -> float | None:
     if re.fullmatch(r"\d{2,3},\d{2}", raw_number):
         raw_number += "0"
     number = float(raw_number.replace(",", ""))
-    multiplier = {"k": 1_000, "m": 1_000_000}.get(
-        (match.group(2) or "").casefold(), 1
-    )
+    multiplier = {"k": 1_000, "m": 1_000_000}.get((match.group(2) or "").casefold(), 1)
     return number * multiplier
 
 
@@ -463,28 +579,34 @@ def compensation_details(text: str) -> dict[str, Any]:
         }
 
     compensation_text = " | ".join(dict.fromkeys(relevant_lines[:5]))
-    parseable_compensation = re.sub(
-        r"(?i)\b401\s*\(?k\)?\b", "", relevant_lines[0]
-    )
+    parseable_compensation = re.sub(r"(?i)\b401\s*\(?k\)?\b", "", relevant_lines[0])
     amount_tokens = re.findall(
         r"(?:[$€£]\s*)?\d[\d,.]*(?:\s*[kKmM])?", parseable_compensation
     )
     amounts = [
-        amount for token in amount_tokens
+        amount
+        for token in amount_tokens
         if (amount := parse_amount(token)) is not None and amount >= 10
     ]
     currency = (
-        "USD" if "$" in compensation_text
-        else "EUR" if "€" in compensation_text
-        else "GBP" if "£" in compensation_text
+        "USD"
+        if "$" in compensation_text
+        else "EUR"
+        if "€" in compensation_text
+        else "GBP"
+        if "£" in compensation_text
         else ""
     )
     lower = compensation_text.casefold()
     period = (
-        "hour" if re.search(r"(?:\b(?:hour|hourly|per hour)\b|/hr\b)", lower)
-        else "year" if re.search(r"(?:\b(?:year|annual|annually|per year)\b|/yr\b)", lower)
-        else "month" if re.search(r"(?:\b(?:month|monthly|per month)\b|/mo\b)", lower)
-        else "year" if amounts and max(amounts) >= 1_000
+        "hour"
+        if re.search(r"(?:\b(?:hour|hourly|per hour)\b|/hr\b)", lower)
+        else "year"
+        if re.search(r"(?:\b(?:year|annual|annually|per year)\b|/yr\b)", lower)
+        else "month"
+        if re.search(r"(?:\b(?:month|monthly|per month)\b|/mo\b)", lower)
+        else "year"
+        if amounts and max(amounts) >= 1_000
         else ""
     )
     return {
@@ -498,7 +620,7 @@ def compensation_details(text: str) -> dict[str, Any]:
 
 def job_description_text(text: str) -> str:
     marker = re.search(r"(?im)^about the job\s*$", text)
-    description = text[marker.end():] if marker else text
+    description = text[marker.end() :] if marker else text
     description = re.split(
         r"(?im)^(?:… more|set alert for similar jobs|about the company)\s*$",
         description,
@@ -518,16 +640,18 @@ def classify_job(text: str, config: dict[str, Any]) -> dict[str, Any] | None:
     lower = text.casefold()
     if any(term.casefold() in title for term in config.get("exclude_title_terms", [])):
         return None
-    if any(term.casefold() in company for term in config.get("exclude_company_terms", [])):
+    if any(
+        term.casefold() in company for term in config.get("exclude_company_terms", [])
+    ):
         return None
-    if any(term.casefold() in lower for term in config.get("exclude_description_terms", [])):
+    if any(
+        term.casefold() in lower for term in config.get("exclude_description_terms", [])
+    ):
         return None
 
     candidates = []
     for family, rules in config["role_families"].items():
-        matches = [
-            term for term in rules["title_terms"] if term.casefold() in title
-        ]
+        matches = [term for term in rules["title_terms"] if term.casefold() in title]
         if matches:
             candidates.append((int(rules["score"]), family, rules, matches))
     if not candidates:
@@ -535,8 +659,7 @@ def classify_job(text: str, config: dict[str, Any]) -> dict[str, Any] | None:
 
     score, family, rules, title_matches = max(candidates, key=lambda item: item[0])
     evidence = [
-        term for term in config.get("evidence_terms", [])
-        if term.casefold() in lower
+        term for term in config.get("evidence_terms", []) if term.casefold() in lower
     ]
     if rules.get("require_evidence") and not evidence:
         return None
@@ -568,10 +691,15 @@ def load_seen(path: Path) -> set[str]:
 
 def save_seen(path: Path, seen: set[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "job_ids": sorted(seen),
-    }, indent=2))
+    path.write_text(
+        json.dumps(
+            {
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "job_ids": sorted(seen),
+            },
+            indent=2,
+        )
+    )
 
 
 def append_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -606,108 +734,79 @@ async def collect(
     skip_job_ids: set[str] | None = None,
     skip_company_keys: set[str] | None = None,
 ) -> dict[str, Any]:
-    original = sys.argv[:]
-    sys.argv = [sys.argv[0]]
-    from linkedin_mcp_server.drivers.browser import close_browser, get_or_create_browser
-    from linkedin_mcp_server.scraping import LinkedInExtractor
-
     searches = []
     opportunities = []
     inspected: set[str] = set()
     selected_company_keys = set(skip_company_keys or set())
-    try:
-        browser = await asyncio.wait_for(get_or_create_browser(), timeout=90)
-        extractor = LinkedInExtractor(browser.page)
-        query_job_ids = known_job_ids
-        for query in config["search_queries"]:
-            if query_job_ids is not None:
-                search = {"job_ids": query_job_ids, "url": "known-job-ids"}
-            else:
-                try:
-                    search = await extractor.search_jobs(
-                        query,
-                        location=config.get("location"),
-                        max_pages=int(config.get("max_pages", 1)),
-                        date_posted=config.get("date_posted"),
-                        job_type=config.get("job_type"),
-                        experience_level=config.get("experience_level"),
-                        work_type=config.get("work_type"),
-                        easy_apply=bool(config.get("easy_apply", False)),
-                        sort_by=config.get("sort_by", "date"),
-                    )
-                except Exception:
-                    search = await guest_search_jobs(
-                        query,
-                        config.get("location"),
-                        int(config.get("max_pages", 1)),
-                        config.get("date_posted"),
-                        config.get("job_type"),
-                        config.get("experience_level"),
-                        config.get("work_type"),
-                        bool(config.get("easy_apply", False)),
-                        config.get("sort_by", "date"),
-                )
-            searches.append({
+    query_job_ids = known_job_ids
+    for query in config["search_queries"]:
+        if query_job_ids is not None:
+            search = {"job_ids": query_job_ids, "url": "known-job-ids"}
+        else:
+            search = await guest_search_jobs(
+                query,
+                config.get("location"),
+                int(config.get("max_pages", 1)),
+                config.get("date_posted"),
+                config.get("job_type"),
+                config.get("experience_level"),
+                config.get("work_type"),
+                bool(config.get("easy_apply", False)),
+                config.get("sort_by", "date"),
+            )
+        searches.append(
+            {
                 "query": query,
                 "url": search.get("url", ""),
                 "jobs_found": len(search.get("job_ids", [])),
-            })
-            detail_limit = int(config.get("max_job_details_per_query", 10))
-            opportunity_limit = int(config.get("max_opportunities_per_run", 10))
-            for job_id in search.get("job_ids", []):
-                job_id = str(job_id)
-                if job_id in inspected or job_id in (skip_job_ids or set()):
-                    continue
-                if len(inspected) >= detail_limit:
-                    break
-                inspected.add(job_id)
-                try:
-                    details = await asyncio.wait_for(
-                        extractor.scrape_job(job_id),
-                        timeout=60,
-                    )
-                except Exception:
-                    # A single slow, removed, or rate-limited listing must not
-                    # block the rest of the daily batch.
-                    continue
-                text = details.get("sections", {}).get("job_posting", "")
-                classification = classify_job(text, config)
-                if not classification:
-                    continue
-                company_linkedin_url, company_slug = company_reference(details)
-                website = ""
-                if company_slug:
-                    try:
-                        company = await asyncio.wait_for(
-                            extractor.scrape_company(company_slug, {"about"}),
-                            timeout=45,
-                        )
-                        company_linkedin_url = (
-                            normalize_linkedin_url(company.get("url", ""))
-                            or company_linkedin_url
-                        )
-                        website = company_website(company)
-                    except Exception:
-                        # The hiring event remains valid when company-page
-                        # enrichment is unavailable or rate-limited.
-                        pass
-                domain = website_domain(website)
-                selected_company_key = company_signal_key(
-                    company_domain=domain,
-                    company_linkedin_url=company_linkedin_url,
-                    company_name=classification["company_name"],
-                    job_id=job_id,
+            }
+        )
+        detail_limit = int(config.get("max_job_details_per_query", 10))
+        opportunity_limit = int(config.get("max_opportunities_per_run", 10))
+        for job_id in search.get("job_ids", []):
+            job_id = str(job_id)
+            if job_id in inspected or job_id in (skip_job_ids or set()):
+                continue
+            if len(inspected) >= detail_limit:
+                break
+            inspected.add(job_id)
+            try:
+                details = await asyncio.wait_for(guest_job_details(job_id), timeout=45)
+            except Exception:
+                # A single slow, removed, or rate-limited listing must not
+                # block the rest of the daily batch.
+                continue
+            if not details.get("job_title") or not details.get("company_name"):
+                continue
+            text = "\n".join(
+                (
+                    details["company_name"],
+                    details["job_title"],
+                    "About the job",
+                    details.get("description", ""),
                 )
-                if selected_company_key in selected_company_keys:
-                    continue
-                selected_company_keys.add(selected_company_key)
-                opportunities.append({
+            )
+            classification = classify_job(text, config)
+            if not classification:
+                continue
+            company_linkedin_url = details.get("company_linkedin_url", "")
+            website = ""
+            domain = website_domain(website)
+            selected_company_key = company_signal_key(
+                company_domain=domain,
+                company_linkedin_url=company_linkedin_url,
+                company_name=classification["company_name"],
+                job_id=job_id,
+            )
+            if selected_company_key in selected_company_keys:
+                continue
+            selected_company_keys.add(selected_company_key)
+            opportunities.append(
+                {
                     "job_id": job_id,
-                    "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
-                    "poster_linkedin_url": (
-                        await poster_reference_from_loaded_page(browser.page)
-                        or poster_reference(details)
-                    ),
+                    "job_url": details.get("job_url")
+                    or f"https://www.linkedin.com/jobs/view/{job_id}/",
+                    "poster_linkedin_url": details.get("poster_linkedin_url", ""),
                     "company_linkedin_url": company_linkedin_url,
                     "company_website": website,
                     "company_domain": domain,
@@ -715,24 +814,18 @@ async def collect(
                     **compensation_details(text),
                     "text": text,
                     **classification,
-                })
-                if len(opportunities) >= opportunity_limit:
-                    break
-            if query_job_ids is not None or len(opportunities) >= opportunity_limit:
+                }
+            )
+            if len(opportunities) >= opportunity_limit:
                 break
-        return {
-            "searches": searches,
-            "jobs_inspected": len(inspected),
-            "opportunities": opportunities,
-        }
-    finally:
-        try:
-            try:
-                await asyncio.wait_for(close_browser(), timeout=30)
-            except Exception:
-                pass
-        finally:
-            sys.argv = original
+        if query_job_ids is not None or len(opportunities) >= opportunity_limit:
+            break
+    return {
+        "searches": searches,
+        "jobs_inspected": len(inspected),
+        "opportunities": opportunities,
+        "collector": "linkedin_guest_api",
+    }
 
 
 def main() -> None:
@@ -743,7 +836,9 @@ def main() -> None:
     parser.add_argument("--lead-sheet", type=Path, default=DEFAULT_LEAD_SHEET)
     parser.add_argument("--system-config", type=Path, default=DEFAULT_SYSTEM_CONFIG)
     parser.add_argument("--job-id", action="append", dest="job_ids")
-    parser.add_argument("--limit", type=int, help="Bound job details/opportunities for a test run")
+    parser.add_argument(
+        "--limit", type=int, help="Bound job details/opportunities for a test run"
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -777,7 +872,9 @@ def main() -> None:
     sheet_job_ids = google_existing_job_ids(system_config)
     skip_job_ids = set() if args.job_ids is not None else (seen | sheet_job_ids)
     result = (
-        asyncio.run(collect(config, args.job_ids, skip_job_ids, company_keys_added_today))
+        asyncio.run(
+            collect(config, args.job_ids, skip_job_ids, company_keys_added_today)
+        )
         if effective_limit > 0
         else {"searches": [], "jobs_inspected": 0, "opportunities": []}
     )
@@ -817,35 +914,37 @@ def main() -> None:
             "status": "opportunity_detected",
         }
         rows.append(row)
-        lead_rows.append({
-            "signal_type": row["signal_type"],
-            "detected_at": detected_at,
-            "lead_type": "company",
-            "lead_key": f"job:{job_id}",
-            "company_name": row["company_name"],
-            "company_linkedin_url": row["company_linkedin_url"],
-            "company_website": row["company_website"],
-            "company_domain": row["company_domain"],
-            "source_url": row["job_url"],
-            "evidence": row["outreach_reason"],
-            "metadata_json": {
-                "job_id": job_id,
-                "job_title": row["job_title"],
-                "poster_linkedin_url": row["poster_linkedin_url"],
+        lead_rows.append(
+            {
+                "signal_type": row["signal_type"],
+                "detected_at": detected_at,
+                "lead_type": "company",
+                "lead_key": f"job:{job_id}",
+                "company_name": row["company_name"],
                 "company_linkedin_url": row["company_linkedin_url"],
                 "company_website": row["company_website"],
-                "compensation_text": row["compensation_text"],
-                "compensation_min": row["compensation_min"],
-                "compensation_max": row["compensation_max"],
-                "compensation_currency": row["compensation_currency"],
-                "compensation_period": row["compensation_period"],
-                "role_family": row["role_family"],
-                "intent_score": row["intent_score"],
-                "evidence_terms": opportunity["evidence_terms"],
-                "offer_angle": row["offer_angle"],
-                "status": row["status"],
-            },
-        })
+                "company_domain": row["company_domain"],
+                "source_url": row["job_url"],
+                "evidence": row["outreach_reason"],
+                "metadata_json": {
+                    "job_id": job_id,
+                    "job_title": row["job_title"],
+                    "poster_linkedin_url": row["poster_linkedin_url"],
+                    "company_linkedin_url": row["company_linkedin_url"],
+                    "company_website": row["company_website"],
+                    "compensation_text": row["compensation_text"],
+                    "compensation_min": row["compensation_min"],
+                    "compensation_max": row["compensation_max"],
+                    "compensation_currency": row["compensation_currency"],
+                    "compensation_period": row["compensation_period"],
+                    "role_family": row["role_family"],
+                    "intent_score": row["intent_score"],
+                    "evidence_terms": opportunity["evidence_terms"],
+                    "offer_angle": row["offer_angle"],
+                    "status": row["status"],
+                },
+            }
+        )
 
     if args.dry_run:
         lead_result = {
@@ -865,29 +964,35 @@ def main() -> None:
         lead_result = append_leads(args.lead_sheet, lead_rows)
         google_result = append_google_rows(system_config, rows)
         save_seen(args.state, seen)
-    print(json.dumps({
-        "status": "success",
-        "dry_run": args.dry_run,
-        "searches": result["searches"],
-        "jobs_inspected": result["jobs_inspected"],
-        "opportunities_qualified": len(result["opportunities"]),
-        "new_opportunities": len(rows),
-        "daily_company_limit": daily_limit,
-        "companies_added_today_before_run": companies_added_today,
-        "daily_company_capacity_requested": effective_limit,
-        "daily_company_capacity_used": google_result["inserted"],
-        "daily_company_capacity_remaining": max(
-            0,
-            daily_remaining - (0 if args.dry_run else google_result["inserted"]),
-        ),
-        "duplicate_jobs_skipped": duplicate_jobs,
-        "output": str(args.output),
-        "state": str(args.state),
-        "lead_sheet": str(args.lead_sheet),
-        "lead_sheet_result": lead_result,
-        "google_sheet_result": google_result,
-        "rows": rows,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "status": "success",
+                "dry_run": args.dry_run,
+                "searches": result["searches"],
+                "jobs_inspected": result["jobs_inspected"],
+                "opportunities_qualified": len(result["opportunities"]),
+                "new_opportunities": len(rows),
+                "daily_company_limit": daily_limit,
+                "companies_added_today_before_run": companies_added_today,
+                "daily_company_capacity_requested": effective_limit,
+                "daily_company_capacity_used": google_result["inserted"],
+                "daily_company_capacity_remaining": max(
+                    0,
+                    daily_remaining
+                    - (0 if args.dry_run else google_result["inserted"]),
+                ),
+                "duplicate_jobs_skipped": duplicate_jobs,
+                "output": str(args.output),
+                "state": str(args.state),
+                "lead_sheet": str(args.lead_sheet),
+                "lead_sheet_result": lead_result,
+                "google_sheet_result": google_result,
+                "rows": rows,
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
