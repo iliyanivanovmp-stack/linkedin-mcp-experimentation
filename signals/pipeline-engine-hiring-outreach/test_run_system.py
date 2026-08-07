@@ -24,6 +24,20 @@ def test_result_metrics_counts_feeder_source_errors():
     assert metrics["failures"] == 2
 
 
+def test_result_metrics_counts_contact_extraction_failures():
+    metrics = run_system.result_metrics(
+        [
+            {
+                "step": "extract_contacts",
+                "result": {"contacts_inserted": 9, "failures": 7},
+            }
+        ]
+    )
+
+    assert metrics["contacts_inserted"] == 9
+    assert metrics["failures"] == 7
+
+
 def test_slack_message_reports_success_metrics():
     message = run_system.slack_message(
         {

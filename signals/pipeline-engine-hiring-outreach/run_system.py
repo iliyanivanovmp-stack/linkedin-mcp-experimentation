@@ -64,6 +64,9 @@ def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
                 metrics["companies_inserted"] = int(google.get("inserted", 0) or 0)
         elif step.get("step") == "extract_contacts":
             metrics["contacts_inserted"] = int(result.get("contacts_inserted", 0) or 0)
+            metrics["failures"] = int(metrics["failures"]) + int(
+                result.get("failures", 0) or 0
+            )
         elif str(step.get("step", "")).startswith("feed_"):
             metrics["contacts_plugged"] = int(metrics["contacts_plugged"]) + int(
                 result.get("plugged", 0) or 0
