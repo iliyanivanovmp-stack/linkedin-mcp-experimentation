@@ -880,7 +880,8 @@ def interleave_job_groups(groups: list[list[dict[str, Any]]]) -> list[dict[str, 
 # ── LinkedIn collection ───────────────────────────────────────────────────────
 
 async def collect(config: dict[str, Any]) -> dict[str, Any]:
-    job_groups: list[list[dict[str, Any]]] = []
+    candidate_groups: list[list[dict[str, Any]]] = []
+    jobs: list[dict[str, Any]] = []
     inspected: set[str] = set()
     searches = []
     evaluations: list[dict[str, Any]] = []
@@ -894,7 +895,6 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
 
         for search_index, (query, location) in enumerate(configured_search_targets(config)):
             await wait_between_searches(config, search_index)
-            query_jobs: list[dict[str, Any]] = []
             search = await extractor.search_jobs(
                 query,
                 location=location,
@@ -910,69 +910,76 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
                 "url": search.get("url", ""),
                 "jobs_found": len(search.get("job_ids", [])),
             })
-
-            for job_id in search.get("job_ids", [])[:fetch_limit]:
-                job_id = str(job_id)
-                if job_id in inspected:
-                    continue
-                inspected.add(job_id)
-
-                details = await extractor.scrape_job(job_id)
-                text = details.get("sections", {}).get("job_posting", "")
-                if not text.strip():
-                    failures.append({
-                        "job_id": job_id, "stage": "parse", "error": "missing job posting text",
-                    })
-                    continue
-
-                company_name, job_title = job_identity(text)
-                # The browser payload includes LinkedIn's workplace/location header
-                # before "About the job". Evaluate the full posting so a Hybrid or
-                # On-site label cannot be hidden by description-only extraction.
-                evaluation = evaluate_job(job_title, text, config)
-                evaluations.append({
-                    "job_id": job_id,
-                    "job_title": job_title,
-                    **evaluation,
-                })
-                if not evaluation["accepted"]:
-                    continue
-
-                company_linkedin_url, company_slug = company_slug_from_details(details)
-                website = ""
-                if company_slug:
-                    try:
-                        company = await extractor.scrape_company(company_slug, {"about"})
-                        company_linkedin_url = (
-                            normalize_linkedin_url(company.get("url", ""))
-                            or company_linkedin_url
-                        )
-                        website = website_from_company(company)
-                    except Exception as exc:
-                        failures.append({
-                            "job_id": job_id, "stage": "company_enrichment",
-                            "error": f"{type(exc).__name__}: {exc}",
-                        })
-
-                query_jobs.append({
-                    "job_id": job_id,
-                    "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
-                    "company_name": company_name,
-                    "company_website": website,
-                    "company_linkedin_url": company_linkedin_url,
-                    "job_title": job_title,
-                    "text": text,
-                    "poster_linkedin_url": poster_url_from_details(details),
-                    "relevance_score": evaluation["score"],
-                    "relevance_signals": evaluation["positive_signals"],
-                    "negative_signals": evaluation.get("negative_signals", []),
+            candidate_groups.append([
+                {
+                    "job_id": str(job_id),
                     "search_lane": search_index + 1,
                     "search_location": location,
-                })
+                }
+                for job_id in search.get("job_ids", [])
+            ])
 
-                if len(query_jobs) >= fetch_limit:
-                    break
-            job_groups.append(query_jobs)
+        # Search every configured lane first, then inspect a single globally
+        # bounded, round-robin candidate queue. The old implementation applied
+        # fetch_limit to every lane and could make hundreds of browser calls,
+        # causing the scheduled Modal function to hit its 20-minute timeout.
+        for candidate in interleave_job_groups(candidate_groups):
+            job_id = candidate["job_id"]
+            if job_id in inspected:
+                continue
+            if len(inspected) >= fetch_limit:
+                break
+            inspected.add(job_id)
+
+            try:
+                details = await extractor.scrape_job(job_id)
+            except Exception as exc:
+                failures.append({
+                    "job_id": job_id,
+                    "stage": "details",
+                    "error": f"{type(exc).__name__}: {exc}",
+                })
+                continue
+
+            text = details.get("sections", {}).get("job_posting", "")
+            if not text.strip():
+                failures.append({
+                    "job_id": job_id, "stage": "parse", "error": "missing job posting text",
+                })
+                continue
+
+            company_name, job_title = job_identity(text)
+            # The browser payload includes LinkedIn's workplace/location header
+            # before "About the job". Evaluate the full posting so a Hybrid or
+            # On-site label cannot be hidden by description-only extraction.
+            evaluation = evaluate_job(job_title, text, config)
+            evaluations.append({
+                "job_id": job_id,
+                "job_title": job_title,
+                **evaluation,
+            })
+            if not evaluation["accepted"]:
+                continue
+
+            company_linkedin_url, _ = company_slug_from_details(details)
+            jobs.append({
+                "job_id": job_id,
+                "job_url": details.get("url") or f"https://www.linkedin.com/jobs/view/{job_id}/",
+                "company_name": company_name,
+                # Domain recovery is handled after ranking by the existing
+                # Apollo/exact-company enrichment path. Avoiding a second slow
+                # LinkedIn company-page call keeps the daily job bounded.
+                "company_website": "",
+                "company_linkedin_url": company_linkedin_url,
+                "job_title": job_title,
+                "text": text,
+                "poster_linkedin_url": poster_url_from_details(details),
+                "relevance_score": evaluation["score"],
+                "relevance_signals": evaluation["positive_signals"],
+                "negative_signals": evaluation.get("negative_signals", []),
+                "search_lane": candidate["search_lane"],
+                "search_location": candidate["search_location"],
+            })
 
         parse_failures = sum(1 for failure in failures if failure["stage"] == "parse")
         if inspected and parse_failures == len(inspected):
@@ -986,7 +993,7 @@ async def collect(config: dict[str, Any]) -> dict[str, Any]:
         return {
             "searches": searches,
             "jobs_inspected": len(inspected),
-            "jobs": interleave_job_groups(job_groups),
+            "jobs": jobs,
             "evaluations": evaluations,
             "health": {
                 "collector": "central_linkedin_mcp",

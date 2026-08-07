@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sys
 import urllib.error
@@ -176,6 +177,60 @@ def test_every_expertise_lane_runs_in_every_target_location():
         "United States", "Europe", "Sofia, Bulgaria", "Australia",
     }
     assert all(CONFIG["work_type"] == "remote" for _ in targets)
+
+
+def test_collect_globally_bounds_detail_calls_and_keeps_lane_round_robin(monkeypatch):
+    detail_calls: list[str] = []
+
+    class FakeClient:
+        def close(self):
+            return None
+
+    class FakeExtractor:
+        search_number = 0
+
+        def __init__(self, client):
+            self.client = client
+
+        async def search_jobs(self, keywords, **filters):
+            self.search_number += 1
+            prefix = str(self.search_number)
+            return {
+                "url": f"https://example.test/search/{prefix}",
+                "job_ids": [f"{prefix}01", f"{prefix}02", f"{prefix}03"],
+            }
+
+        async def scrape_job(self, job_id):
+            detail_calls.append(job_id)
+            return {
+                "url": f"https://www.linkedin.com/jobs/view/{job_id}/",
+                "sections": {
+                    "job_posting": (
+                        "Example Co\nAI Automation Specialist\nAbout the job\n"
+                        "Remote contract building n8n workflow automation and API integration."
+                    ),
+                },
+                "references": {"job_posting": []},
+            }
+
+        async def scrape_company(self, company_name, sections=None):
+            raise AssertionError("collect must not make unbounded company-page calls")
+
+    async def no_wait(config, query_index):
+        return None
+
+    config = dict(CONFIG)
+    config["max_jobs_per_run"] = 2
+    config["candidate_fetch_multiplier"] = 2
+    monkeypatch.setattr(track_jobs, "LinkedInMCPClient", FakeClient)
+    monkeypatch.setattr(track_jobs, "LinkedInMCPExtractor", FakeExtractor)
+    monkeypatch.setattr(track_jobs, "wait_between_searches", no_wait)
+
+    result = asyncio.run(track_jobs.collect(config))
+
+    assert detail_calls == ["101", "201", "301", "401"]
+    assert result["jobs_inspected"] == 4
+    assert [job["search_lane"] for job in result["jobs"]] == [1, 2, 3, 4]
 
 
 @pytest.mark.parametrize(
