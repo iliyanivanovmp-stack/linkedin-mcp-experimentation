@@ -173,14 +173,28 @@ class LemlistCompanyClient:
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
 
-    def search(self, company_name: str) -> list[dict[str, Any]]:
+    def search(
+        self,
+        company_name: str,
+        company_linkedin_url: str = "",
+    ) -> list[dict[str, Any]]:
         auth = base64.b64encode(f":{self.api_key}".encode()).decode()
+        if company_linkedin_url:
+            company_filter = {
+                "filterId": "currentCompanyLinkedInUrl",
+                "in": [company_linkedin_url],
+                "out": [],
+            }
+        else:
+            company_filter = {
+                "filterId": "currentCompany",
+                "in": [company_name],
+                "out": [],
+            }
         request = urllib.request.Request(
             "https://api.lemlist.com/api/database/companies",
             data=json.dumps({
-                "filters": [
-                    {"filterId": "currentCompany", "in": [company_name], "out": []},
-                ],
+                "filters": [company_filter],
                 "page": 1,
                 "size": 10,
             }).encode(),
@@ -197,10 +211,14 @@ class LemlistCompanyClient:
             return payload
         return list(payload.get("results") or [])
 
-    def find_exact(self, company_name: str) -> dict[str, str]:
+    def find_exact(
+        self,
+        company_name: str,
+        company_linkedin_url: str = "",
+    ) -> dict[str, str]:
         expected = normalize_company_name(company_name)
         matches: dict[str, dict[str, str]] = {}
-        for company in self.search(company_name):
+        for company in self.search(company_name, company_linkedin_url):
             name = str(company.get("company_name") or "")
             if normalize_company_name(name) != expected:
                 continue
@@ -257,7 +275,7 @@ def enrich_company(
     provider_statuses: list[str] = []
     if lemlist is not None and company_name.strip():
         try:
-            lemlist_result = lemlist.find_exact(company_name)
+            lemlist_result = lemlist.find_exact(company_name, company_linkedin_url)
             provider_statuses.append(str(lemlist_result.get("domain_status", "unresolved")))
             if lemlist_result.get("domain_status") == "resolved":
                 result.update(lemlist_result)

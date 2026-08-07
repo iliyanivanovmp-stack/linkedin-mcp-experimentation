@@ -73,6 +73,9 @@ secrets = [
     # The Automation Jobs secret remains authoritative for Google, Slack, and
     # the target spreadsheet.
     modal.Secret.from_name("pipeline-engine-hiring-outreach-secrets"),
+    # Isolated replacement for the expired shared Apollo key. Listed after the
+    # shared Lemlist secret so only APOLLO_API_KEY is overridden.
+    modal.Secret.from_name("automation-jobs-domain-enrichment"),
     modal.Secret.from_name("linkedin-mcp-auth"),
 ]
 

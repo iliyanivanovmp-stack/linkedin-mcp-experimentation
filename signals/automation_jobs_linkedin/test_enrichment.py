@@ -36,7 +36,7 @@ class FakeLemlist(LemlistCompanyClient):
     def __init__(self, companies):
         self.companies = companies
 
-    def search(self, company_name):
+    def search(self, company_name, company_linkedin_url=""):
         return self.companies
 
 

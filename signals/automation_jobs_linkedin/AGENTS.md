@@ -114,10 +114,13 @@ Outreach enrichment columns are appended after all existing fields for
 `domain_source`, and `domain_status`. The first seven columns must never move,
 because the resume generator validates that prefix before processing rows.
 
-Use `backfill_enrichment.py` to reconcile historical rows. It retries the public
-company reference already attached to each job, then uses an exact-company
-Apollo lookup when a website is still unavailable. Ambiguous Apollo matches stay
-unresolved. The command is non-mutating with `--dry-run`.
+Use `backfill_enrichment.py` to reconcile historical rows. When a historical row
+lacks every company identifier, it retrieves the exact company LinkedIn URL from
+the job through the centralized authenticated LinkedIn MCP. Lemlist Companies
+Database then resolves the domain by exact LinkedIn URL. Exact company-name
+matching is used when no URL is available, with Apollo retained as a final
+fallback. Ambiguous matches stay unresolved. The command is non-mutating with
+`--dry-run`.
 
 Older sheets may still have `short_description` as the column E header. The
 writer upgrades that legacy header to `job_description` before appending rows.
@@ -148,9 +151,11 @@ rates, and the most common rejection reasons.
 - `SLACK_WEBHOOK_URL` — incoming webhook for run notifications
 - `TRIGGER_TOKEN` — required bearer token for the n8n HTTP trigger
 
-The Modal functions also attach `pipeline-engine-hiring-outreach-secrets` to
-reuse its existing `APOLLO_API_KEY` for exact-company domain recovery. Do not
-copy or rotate the Apollo credential into the Automation Jobs secret.
+The Modal functions attach `pipeline-engine-hiring-outreach-secrets` for the
+existing Lemlist credential, then `automation-jobs-domain-enrichment` for the
+isolated Apollo fallback credential. The latter is deliberately separate so an
+Apollo credential change cannot disturb another system. Apollo company search
+also requires an Apollo plan that includes `/mixed_companies/search`.
 
 `TRIGGER_TOKEN` is stored separately in the Modal secret
 `automation-jobs-linkedin-trigger`, so rotating it cannot overwrite the Google

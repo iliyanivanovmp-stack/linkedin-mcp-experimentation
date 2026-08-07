@@ -19,6 +19,7 @@ from enrichment import (
     enrich_company,
     load_domain_overrides,
 )
+from linkedin_mcp_client import LinkedInMCPClient
 
 
 ROOT = Path(__file__).resolve().parent
@@ -56,12 +57,30 @@ def ensure_columns(worksheet, headers: list[str]) -> list[str]:
 
 async def enrich_row(
     row: dict[str, Any],
+    linkedin: LinkedInMCPClient | None,
     lemlist: LemlistCompanyClient | None,
     apollo: ApolloCompanyClient | None,
     domain_overrides: dict[str, str],
 ) -> dict[str, Any]:
     website = str(row.get("company_website", "") or "").strip()
     company_linkedin_url = str(row.get("company_linkedin_url", "") or "").strip()
+    if (
+        not website
+        and not str(row.get("company_domain", "") or "").strip()
+        and not company_linkedin_url
+        and linkedin is not None
+    ):
+        job_id = str(row.get("job_id", "") or "").strip()
+        if job_id:
+            details = linkedin.call_tool("get_job_details", {"job_id": job_id})
+            for reference in details.get("references", {}).get("job_posting", []):
+                if reference.get("kind") != "company":
+                    continue
+                reference_url = str(reference.get("url", "") or "").strip()
+                if reference_url.startswith("/"):
+                    reference_url = f"https://www.linkedin.com{reference_url}"
+                company_linkedin_url = reference_url.rstrip("/") + "/" if reference_url else ""
+                break
     updates = enrich_company(
         str(row.get("company_name", "") or "").strip(),
         website,
@@ -93,6 +112,7 @@ async def backfill(worksheet, dry_run: bool, limit: int | None) -> dict[str, Any
     lemlist = LemlistCompanyClient(lemlist_key) if lemlist_key else None
     apollo_key = os.environ.get("APOLLO_API_KEY", "").strip()
     apollo = ApolloCompanyClient(apollo_key) if apollo_key else None
+    linkedin = LinkedInMCPClient() if os.environ.get("LINKEDIN_MCP_TOKEN", "").strip() else None
     domain_overrides = load_domain_overrides()
     summary: dict[str, Any] = {
         "dry_run": dry_run,
@@ -104,42 +124,46 @@ async def backfill(worksheet, dry_run: bool, limit: int | None) -> dict[str, Any
         "compensation_found": 0,
         "errors": [],
     }
-    for row_number, raw in enumerate(values[1:], start=2):
-        row = {header: raw[index] if index < len(raw) else "" for index, header in enumerate(headers)}
-        if not str(row.get("job_id", "")).strip():
-            continue
-        if limit is not None and summary["rows_seen"] >= limit:
-            break
-        summary["rows_seen"] += 1
-        try:
-            updates = await enrich_row(row, lemlist, apollo, domain_overrides)
-        except Exception as exc:
-            summary["errors"].append({"row": row_number, "error": f"{type(exc).__name__}: {exc}"[:500]})
-            continue
-        status = str(updates.get("domain_status", "unresolved"))
-        if status == "resolved":
-            summary["domains_resolved"] += 1
-        elif status == "ambiguous":
-            summary["domains_ambiguous"] += 1
-        else:
-            summary["domains_unresolved"] += 1
-        if updates.get("compensation_text"):
-            summary["compensation_found"] += 1
-        changed = {
-            key: value
-            for key, value in updates.items()
-            if key in headers and str(row.get(key, "")) != str(value)
-        }
-        if changed:
-            summary["rows_updated"] += 1
-            if not dry_run:
-                worksheet.batch_update([
-                    {
-                        "range": f"{column_letter(headers.index(key) + 1)}{row_number}",
-                        "values": [[str(value)]],
-                    }
-                    for key, value in changed.items()
-                ])
+    try:
+        for row_number, raw in enumerate(values[1:], start=2):
+            row = {header: raw[index] if index < len(raw) else "" for index, header in enumerate(headers)}
+            if not str(row.get("job_id", "")).strip():
+                continue
+            if limit is not None and summary["rows_seen"] >= limit:
+                break
+            summary["rows_seen"] += 1
+            try:
+                updates = await enrich_row(row, linkedin, lemlist, apollo, domain_overrides)
+            except Exception as exc:
+                summary["errors"].append({"row": row_number, "error": f"{type(exc).__name__}: {exc}"[:500]})
+                continue
+            status = str(updates.get("domain_status", "unresolved"))
+            if status == "resolved":
+                summary["domains_resolved"] += 1
+            elif status == "ambiguous":
+                summary["domains_ambiguous"] += 1
+            else:
+                summary["domains_unresolved"] += 1
+            if updates.get("compensation_text"):
+                summary["compensation_found"] += 1
+            changed = {
+                key: value
+                for key, value in updates.items()
+                if key in headers and str(row.get(key, "")) != str(value)
+            }
+            if changed:
+                summary["rows_updated"] += 1
+                if not dry_run:
+                    worksheet.batch_update([
+                        {
+                            "range": f"{column_letter(headers.index(key) + 1)}{row_number}",
+                            "values": [[str(value)]],
+                        }
+                        for key, value in changed.items()
+                    ])
+    finally:
+        if linkedin is not None:
+            linkedin.close()
     return summary
 
 
