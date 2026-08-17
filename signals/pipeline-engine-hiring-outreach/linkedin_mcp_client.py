@@ -125,10 +125,7 @@ class LinkedInMCPClient:
         text = self._content_text(result)
         if not text:
             return {}
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError as error:
-            raise RuntimeError(f"LinkedIn MCP tool {name} returned invalid JSON") from error
+        parsed = self._parse_tool_payload(text, name)
         if not isinstance(parsed, dict):
             raise RuntimeError(f"LinkedIn MCP tool {name} returned a non-object result")
         return parsed
@@ -140,6 +137,19 @@ class LinkedInMCPClient:
             for item in result.get("content", [])
             if isinstance(item, dict) and item.get("type") == "text"
         ).strip()
+
+    @staticmethod
+    def _parse_tool_payload(text: str, name: str) -> Any:
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as error:
+            decoder = json.JSONDecoder()
+            stripped = text.lstrip()
+            try:
+                parsed, _ = decoder.raw_decode(stripped)
+            except json.JSONDecodeError:
+                raise RuntimeError(f"LinkedIn MCP tool {name} returned invalid JSON") from error
+            return parsed
 
     def close(self) -> None:
         try:

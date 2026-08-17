@@ -20,6 +20,13 @@ def test_content_text_extracts_mcp_text_blocks():
     assert LinkedInMCPClient._content_text(result) == '{"job_ids": ["123"]}'
 
 
+def test_parse_tool_payload_accepts_leading_json_object():
+    assert LinkedInMCPClient._parse_tool_payload(
+        '{"job_ids": ["123"]}\nextra diagnostic text',
+        "search_jobs",
+    ) == {"job_ids": ["123"]}
+
+
 def test_extractor_routes_search_through_official_mcp_tool():
     calls = []
 
