@@ -23,10 +23,10 @@ python3 run_system.py
 ```
 
 The workflow prepares context, extracts decision makers through Lemlist with
-Apollo fallback, and attempts missing-email enrichment. Contacts with emails
-enter `Technology-based outreach`; unresolved contacts with LinkedIn profiles
-receive deterministic placeholder emails and enter
-`Technology-based outreach - LinkedIn only`.
+Apollo fallback, and attempts missing-email enrichment. Every eligible contact
+enters `Technology-based outreach`; the same contacts also enter
+`Technology-based outreach - LinkedIn only` with deterministic placeholder
+emails so Lemlist can keep the campaign memberships separate.
 
 Both campaigns share one persistent maximum of 30 total contacts per
 Europe/Sofia calendar day.

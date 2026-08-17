@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import base64
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -35,9 +36,20 @@ OUTPUT_COLUMNS = [
     "lemlist_attempt_count",
     "lemlist_last_attempt_at",
 ]
+STATE_FIELD_NAMES = [
+    "status",
+    "lemlist_campaign",
+    "lemlist_campaign_id",
+    "lemlist_lead_id",
+    "plugged_at",
+    "lemlist_error",
+    "lemlist_attempt_count",
+    "lemlist_last_attempt_at",
+]
 
 RETRYABLE_STATUSES = {"failed"}
 MAX_LEMLIST_ATTEMPTS = 3
+PLACEHOLDER_EMAIL_DOMAIN = "technology-outreach-linkedin-only.invalid"
 
 
 FIELD_ALIASES = {
@@ -427,6 +439,82 @@ def lead_identity(row: dict[str, str]) -> str:
     return ""
 
 
+def placeholder_email(
+    row: dict[str, str],
+    placeholder_domain: str = PLACEHOLDER_EMAIL_DOMAIN,
+) -> str:
+    identity = (
+        first_value(row, FIELD_ALIASES["linkedin_url"])
+        or first_value(row, FIELD_ALIASES["person_name"])
+        or first_value(row, FIELD_ALIASES["email"])
+        or json.dumps(row, sort_keys=True)
+    )
+    digest = hashlib.sha256(identity.encode()).hexdigest()[:16]
+    return f"linkedin-only+{digest}@{placeholder_domain}"
+
+
+def row_for_source(row: dict[str, str], source: dict[str, Any]) -> dict[str, str]:
+    resolved = dict(row)
+    if str(source.get("email_mode", "") or "").strip() == "linkedin_placeholder":
+        resolved["email"] = placeholder_email(
+            resolved,
+            str(source.get("placeholder_email_domain") or PLACEHOLDER_EMAIL_DOMAIN),
+        )
+    return resolved
+
+
+def lead_identity_for_source(row: dict[str, str], source: dict[str, Any]) -> str:
+    return lead_identity(row_for_source(row, source))
+
+
+def source_state_field(source: dict[str, Any], field: str) -> str:
+    prefix = str(source.get("state_prefix", "") or "").strip()
+    return f"{prefix}_{field}" if prefix else field
+
+
+def source_output_columns(source: dict[str, Any]) -> list[str]:
+    return [source_state_field(source, field) for field in STATE_FIELD_NAMES]
+
+
+def source_state_value(
+    row: dict[str, str],
+    source: dict[str, Any],
+    campaign_name: str,
+    field: str,
+) -> str:
+    value = str(row.get(source_state_field(source, field), "") or "").strip()
+    if value:
+        return value
+    if source.get("state_prefix") and legacy_row_matches_campaign(row, campaign_name):
+        return str(row.get(field, "") or "").strip()
+    return ""
+
+
+def source_state_update(source: dict[str, Any], updates: dict[str, str]) -> dict[str, str]:
+    return {
+        source_state_field(source, field): value
+        for field, value in updates.items()
+    }
+
+
+def source_row_matches_campaign(
+    row: dict[str, str],
+    source: dict[str, Any],
+    campaign_name: str,
+) -> bool:
+    row_campaign = str(row.get(source_state_field(source, "lemlist_campaign"), "") or "").strip()
+    if row_campaign:
+        return row_campaign.casefold() == campaign_name.casefold()
+    if source.get("state_prefix"):
+        return True
+    return legacy_row_matches_campaign(row, campaign_name)
+
+
+def legacy_row_matches_campaign(row: dict[str, str], campaign_name: str) -> bool:
+    row_campaign = str(row.get("lemlist_campaign", "") or "").strip()
+    return bool(row_campaign) and row_campaign.casefold() == campaign_name.casefold()
+
+
 def row_matches_campaign(row: dict[str, str], campaign_name: str) -> bool:
     row_campaign = str(row.get("lemlist_campaign", "") or "").strip()
     if not row_campaign:
@@ -574,6 +662,7 @@ def plugged_today(
     rows: list[SheetRow],
     campaign_name: str,
     timezone_name: str,
+    source: dict[str, Any] | None = None,
     now: datetime | None = None,
 ) -> int:
     current = now or datetime.now(timezone.utc)
@@ -581,9 +670,22 @@ def plugged_today(
     return sum(
         1
         for row in rows
-        if row.data.get("status", "").strip().casefold() == "plugged"
-        and row_matches_campaign(row.data, campaign_name)
-        and local_date(str(row.data.get("plugged_at", "") or ""), timezone_name) == today
+        if (
+            source_state_value(row.data, source, campaign_name, "status").casefold()
+            if source is not None
+            else row.data.get("status", "").strip().casefold()
+        ) == "plugged"
+        and (
+            source_row_matches_campaign(row.data, source, campaign_name)
+            if source is not None
+            else row_matches_campaign(row.data, campaign_name)
+        )
+        and local_date(
+            source_state_value(row.data, source, campaign_name, "plugged_at")
+            if source is not None
+            else str(row.data.get("plugged_at", "") or ""),
+            timezone_name,
+        ) == today
     )
 
 
@@ -610,9 +712,10 @@ def plugged_today_for_campaigns(
     rows: list[SheetRow],
     campaign_names: set[str],
     timezone_name: str,
+    source: dict[str, Any] | None = None,
     now: datetime | None = None,
 ) -> int:
-    return sum(plugged_today(rows, name, timezone_name, now) for name in campaign_names)
+    return sum(plugged_today(rows, name, timezone_name, source, now) for name in campaign_names)
 
 
 def domain_from_url(value: str) -> str:
@@ -701,7 +804,7 @@ def process(
         try:
             sheet = open_sheet(source)
             if not dry_run:
-                sheet.ensure_columns(OUTPUT_COLUMNS)
+                sheet.ensure_columns(source_output_columns(source))
                 if sync_existing_variables:
                     sheet.ensure_columns([field for field, _ in DERIVED_CONTEXT_FIELDS.values()])
             rows = sheet.rows()
@@ -713,7 +816,7 @@ def process(
 
         daily_limit = int(source.get("daily_limit", 0) or 0)
         daily_campaign_names = campaign_names_for_daily_limit_group(config, source, campaign_name)
-        already_plugged_today = plugged_today_for_campaigns(rows, daily_campaign_names, timezone_name)
+        already_plugged_today = plugged_today_for_campaigns(rows, daily_campaign_names, timezone_name, source)
         daily_remaining = max(0, daily_limit - already_plugged_today) if daily_limit else None
         source_result["daily_limit"] = daily_limit or None
         source_result["plugged_today"] = already_plugged_today
@@ -725,13 +828,13 @@ def process(
             for row in rows:
                 if limit is not None and source_result["sync_candidates"] >= limit:
                     break
-                if row.data.get("status", "").strip().casefold() != "plugged":
+                if source_state_value(row.data, source, campaign_name, "status").casefold() != "plugged":
                     continue
-                if not row_matches_campaign(row.data, campaign_name):
+                if not source_row_matches_campaign(row.data, source, campaign_name):
                     continue
                 source_result["sync_candidates"] += 1
-                lead_id = str(row.data.get("lemlist_lead_id", "") or "").strip()
-                resolved_row = with_derived_context(row.data)
+                lead_id = source_state_value(row.data, source, campaign_name, "lemlist_lead_id")
+                resolved_row = with_derived_context(row_for_source(row.data, source))
                 _, missing = build_payload(
                     resolved_row,
                     timezone_name,
@@ -745,7 +848,7 @@ def process(
                     summary["failed"] += 1
                     if not dry_run:
                         error = ", ".join(missing) if missing else "Missing LEMLIST_API_KEY"
-                        sheet.update_row(row.number, {"lemlist_error": f"Variable sync failed: {error}"})
+                        sheet.update_row(row.number, source_state_update(source, {"lemlist_error": f"Variable sync failed: {error}"}))
                     continue
                 try:
                     if not dry_run:
@@ -758,59 +861,65 @@ def process(
                             for field_name, _ in DERIVED_CONTEXT_FIELDS.values()
                             if resolved_row.get(field_name, "")
                         }
-                        sheet.update_row(row.number, {**derived_updates, "lemlist_error": ""})
+                        sheet.update_row(row.number, {
+                            **derived_updates,
+                            **source_state_update(source, {"lemlist_error": ""}),
+                        })
                     source_result["synced_variables"] += 1
                     summary["synced_variables"] += 1
                 except Exception as exc:
                     source_result["sync_failed"] += 1
                     summary["failed"] += 1
                     if not dry_run:
-                        sheet.update_row(row.number, {"lemlist_error": f"Variable sync failed: {read_error(exc)}"[:1000]})
+                        sheet.update_row(row.number, source_state_update(source, {"lemlist_error": f"Variable sync failed: {read_error(exc)}"[:1000]}))
             summary["sources"].append(source_result)
             continue
 
         existing_plugged = {
             (campaign_name, identity)
             for row in rows
-            if row.data.get("status", "").strip().casefold() == "plugged"
-            if (identity := lead_identity(row.data))
+            if source_state_value(row.data, source, campaign_name, "status").casefold() == "plugged"
+            if source_row_matches_campaign(row.data, source, campaign_name)
+            if (identity := lead_identity_for_source(row.data, source))
         }
 
         for row in rows:
-            if limit is not None and summary["ready"] >= limit:
+            if limit is not None and source_result["ready"] >= limit:
                 break
             if daily_remaining is not None and source_result["ready"] >= daily_remaining:
                 break
-            status = row.data.get("status", "").strip().casefold()
-            attempts = attempt_count(row.data.get("lemlist_attempt_count", "0"))
+            status = source_state_value(row.data, source, campaign_name, "status").casefold()
+            attempts = attempt_count(source_state_value(row.data, source, campaign_name, "lemlist_attempt_count"))
             if not retryable_row(status, attempts):
                 continue
-            if not row_matches_campaign(row.data, campaign_name):
+            if not source_row_matches_campaign(row.data, source, campaign_name):
                 continue
 
             summary["ready"] += 1
             source_result["ready"] += 1
+            source_row = row_for_source(row.data, source)
             payload, missing = build_payload(
-                row.data,
+                source_row,
                 timezone_name,
                 aliases,
                 required_custom_variables(source),
             )
-            identity = lead_identity(row.data)
+            identity = lead_identity(source_row)
             dedupe_key = (campaign_name, identity)
 
-            base_update = {
+            base_update = source_state_update(source, {
                 "lemlist_campaign": campaign_name,
                 "lemlist_campaign_id": campaign_id,
                 "lemlist_error": "",
                 "lemlist_attempt_count": str(attempts + 1),
                 "lemlist_last_attempt_at": now_iso(),
-            }
+            })
 
             if missing:
                 mark_failed(
                     sheet,
                     row.number,
+                    source,
                     base_update,
                     f"Missing: {', '.join(missing)}",
                     dry_run,
@@ -822,9 +931,11 @@ def process(
             if dedupe_key in existing_plugged or dedupe_key in processed_keys:
                 update = {
                     **base_update,
-                    "status": "plugged",
-                    "plugged_at": now_iso(),
-                    "lemlist_error": "duplicate: already plugged for this campaign",
+                    **source_state_update(source, {
+                        "status": "plugged",
+                        "plugged_at": now_iso(),
+                        "lemlist_error": "duplicate: already plugged for this campaign",
+                    }),
                 }
                 if not dry_run:
                     sheet.update_row(row.number, update)
@@ -832,12 +943,12 @@ def process(
                 source_result["duplicates"] += 1
                 continue
             if not campaign_id and not dry_run:
-                mark_failed(sheet, row.number, base_update, "Missing Lemlist campaign ID", dry_run)
+                mark_failed(sheet, row.number, source, base_update, "Missing Lemlist campaign ID", dry_run)
                 summary["failed"] += 1
                 source_result["failed"] += 1
                 continue
             if client is None and not dry_run:
-                mark_failed(sheet, row.number, base_update, "Missing LEMLIST_API_KEY", dry_run)
+                mark_failed(sheet, row.number, source, base_update, "Missing LEMLIST_API_KEY", dry_run)
                 summary["failed"] += 1
                 source_result["failed"] += 1
                 continue
@@ -848,14 +959,16 @@ def process(
                 if not dry_run and lead_id:
                     client.add_custom_variables(
                         lead_id,
-                        custom_variables_for_lemlist(row.data, aliases),
+                        custom_variables_for_lemlist(source_row, aliases),
                     )  # type: ignore[union-attr]
                 update = {
                     **base_update,
-                    "status": "plugged",
-                    "lemlist_lead_id": lead_id,
-                    "plugged_at": now_iso(),
-                    "lemlist_error": "",
+                    **source_state_update(source, {
+                        "status": "plugged",
+                        "lemlist_lead_id": lead_id,
+                        "plugged_at": now_iso(),
+                        "lemlist_error": "",
+                    }),
                 }
                 if not dry_run:
                     sheet.update_row(row.number, update)
@@ -868,13 +981,15 @@ def process(
                     if not dry_run:
                         sheet.update_row(row.number, {
                             **base_update,
-                            "status": "skipped_existing_campaign",
-                            "lemlist_error": error,
+                            **source_state_update(source, {
+                                "status": "skipped_existing_campaign",
+                                "lemlist_error": error,
+                            }),
                         })
                     summary["duplicates"] += 1
                     source_result["duplicates"] += 1
                 else:
-                    mark_failed(sheet, row.number, base_update, error, dry_run)
+                    mark_failed(sheet, row.number, source, base_update, error, dry_run)
                     summary["failed"] += 1
                     source_result["failed"] += 1
 
@@ -885,6 +1000,7 @@ def process(
 def mark_failed(
     sheet: Sheet,
     row_number: int,
+    source: dict[str, Any],
     base_update: dict[str, str],
     error: str,
     dry_run: bool,
@@ -894,8 +1010,10 @@ def mark_failed(
         return
     sheet.update_row(row_number, {
         **base_update,
-        "status": status,
-        "lemlist_error": error[:1000],
+        **source_state_update(source, {
+            "status": status,
+            "lemlist_error": error[:1000],
+        }),
     })
 
 

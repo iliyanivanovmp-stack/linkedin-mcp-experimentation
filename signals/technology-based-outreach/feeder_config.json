@@ -54,6 +54,9 @@
       "spreadsheet_id": "1TVUzhRrX0OPJps6OqwV9yD7Bth5k0OV7NhOQjkqp3vQ",
       "worksheet": "Contacts",
       "timezone": "Europe/Sofia",
+      "state_prefix": "linkedin_only",
+      "email_mode": "linkedin_placeholder",
+      "placeholder_email_domain": "technology-outreach-linkedin-only.invalid",
       "daily_limit": 30,
       "daily_limit_group": "technology_outreach",
       "required_custom_variables": [
