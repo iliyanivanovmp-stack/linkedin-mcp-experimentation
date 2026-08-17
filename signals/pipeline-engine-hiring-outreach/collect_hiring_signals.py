@@ -704,6 +704,11 @@ async def collect(
                         extractor.scrape_job(job_id),
                         timeout=60,
                     )
+                    if (
+                        config.get("guest_detail_fallback", True)
+                        and not details.get("sections", {}).get("job_posting", "")
+                    ):
+                        details = guest_job_details(job_id)
                 except Exception:
                     if config.get("guest_detail_fallback", True):
                         try:
