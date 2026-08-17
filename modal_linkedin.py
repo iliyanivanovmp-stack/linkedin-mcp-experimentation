@@ -11,7 +11,7 @@ import modal
 app = modal.App("linkedin-mcp")
 session_volume = modal.Volume.from_name("linkedin-mcp-vol", create_if_missing=True)
 BROWSERS_PATH = "/patchright-browsers"
-MCP_VERSION = "4.16.1"
+MCP_VERSION = "4.19.0"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
