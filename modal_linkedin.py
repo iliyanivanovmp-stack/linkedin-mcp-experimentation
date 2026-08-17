@@ -12,6 +12,7 @@ app = modal.App("linkedin-mcp")
 session_volume = modal.Volume.from_name("linkedin-mcp-vol", create_if_missing=True)
 BROWSERS_PATH = "/patchright-browsers"
 MCP_VERSION = "4.19.0"
+PATCHRIGHT_VERSION = "1.61.2"
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -27,7 +28,7 @@ image = (
     )
     .run_commands(
         f"uv tool install mcp-server-linkedin=={MCP_VERSION} "
-        "--with patchright==1.60.1"
+        f"--with patchright=={PATCHRIGHT_VERSION}"
     )
     .env({
         "PATH": "/root/.local/bin:/usr/local/bin:/usr/bin:/bin",
@@ -35,7 +36,7 @@ image = (
     })
     .run_commands(
         "PLAYWRIGHT_BROWSERS_PATH=/patchright-browsers "
-        "uvx --from patchright==1.60.1 patchright install chromium"
+        f"uvx --from patchright=={PATCHRIGHT_VERSION} patchright install chromium"
     )
 )
 
