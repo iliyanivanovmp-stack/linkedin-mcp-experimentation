@@ -73,6 +73,22 @@ Production credentials are supplied through Modal secrets, not committed files.
 `--dry-run` is non-mutating across sourcing, context preparation, domain
 recovery, contact extraction, enrichment, and Lemlist feeding.
 
+## LinkedIn session failures
+
+If Slack reports `Central LinkedIn MCP session is not valid` or
+`No valid LinkedIn session is available in Docker`, the hiring app is reaching
+the shared MCP service but the browser profile in `linkedin-mcp-vol` is expired
+or missing. Do not copy LinkedIn session files into this app. Refresh the shared
+volume from the parent checkout by following `../../README.md`:
+
+```bash
+uvx mcp-server-linkedin@latest --login
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/cookies.json /cookies.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/source-state.json /source-state.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/browser-install.json /browser-install.json --force
+modal volume put linkedin-mcp-vol ~/.linkedin-mcp/profile /profile --force
+```
+
 ## Launch checklist
 
 Keep the Lemlist campaigns and n8n workflow inactive until all items pass:

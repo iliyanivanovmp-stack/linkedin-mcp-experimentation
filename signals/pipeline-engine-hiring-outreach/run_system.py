@@ -80,6 +80,21 @@ def result_metrics(results: list[dict[str, object]]) -> dict[str, object]:
     return metrics
 
 
+def step_error_text(step: dict[str, object]) -> str:
+    stderr = str(step.get("stderr") or "").strip()
+    if stderr:
+        return stderr
+    result = step.get("result")
+    if isinstance(result, dict):
+        for key in ("error", "message", "detail"):
+            value = str(result.get(key) or "").strip()
+            if value:
+                return value
+    if isinstance(result, str) and result.strip():
+        return result.strip()
+    return "No error details"
+
+
 def post_json(url: str, payload: dict[str, object]) -> int:
     request = urllib.request.Request(
         url,
@@ -159,7 +174,7 @@ def slack_message(payload: dict[str, object]) -> str:
         lines.extend(
             [
                 f"Error step: {failed_step.get('step', 'unknown')}",
-                f"Error: {failed_step.get('stderr', 'No error details')}",
+                f"Error: {step_error_text(failed_step)}",
             ]
         )
     return "\n".join(lines)

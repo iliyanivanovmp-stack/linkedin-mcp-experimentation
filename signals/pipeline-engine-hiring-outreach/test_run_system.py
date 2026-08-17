@@ -103,6 +103,26 @@ def test_slack_message_reports_failed_step():
     assert "No authentication found" in message
 
 
+def test_slack_message_uses_structured_error_when_stderr_empty():
+    message = run_system.slack_message(
+        {
+            "status": "error",
+            "metrics": {},
+            "steps": [
+                {
+                    "step": "collect_hiring_signals",
+                    "ok": False,
+                    "stderr": "",
+                    "result": {"error": "Central LinkedIn MCP session is not valid"},
+                }
+            ],
+        }
+    )
+
+    assert "Error step: collect_hiring_signals" in message
+    assert "Central LinkedIn MCP session is not valid" in message
+
+
 def test_post_slack_message_uses_bot_token(monkeypatch):
     captured = {}
 

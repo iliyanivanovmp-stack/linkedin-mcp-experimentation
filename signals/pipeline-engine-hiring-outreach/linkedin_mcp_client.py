@@ -13,6 +13,34 @@ DEFAULT_ENDPOINT = (
     "https://iliyan-ivanov-mp--linkedin-mcp-linkedin-mcp-server.modal.run/mcp"
 )
 
+SESSION_ERROR_MARKERS = (
+    "no valid linkedin session",
+    "run --login",
+    "create a session",
+    "not logged in",
+    "cookies",
+)
+
+
+class LinkedInMCPSessionError(RuntimeError):
+    """Raised when the centralized MCP is reachable but unauthenticated."""
+
+
+def is_session_error(message: str) -> bool:
+    text = message.casefold()
+    return "linkedin" in text and any(marker in text for marker in SESSION_ERROR_MARKERS)
+
+
+def session_error_message(detail: str) -> str:
+    return (
+        "Central LinkedIn MCP session is not valid. Refresh the shared "
+        "`linkedin-mcp-vol` session from the host before enabling sourcing: "
+        "`uvx mcp-server-linkedin@latest --login`, then upload "
+        "`~/.linkedin-mcp/cookies.json`, `source-state.json`, "
+        "`browser-install.json`, and `profile` to `linkedin-mcp-vol`. "
+        f"MCP detail: {detail}"
+    )
+
 
 class LinkedInMCPClient:
     def __init__(self, endpoint: str | None = None) -> None:
@@ -90,7 +118,10 @@ class LinkedInMCPClient:
         self.last_call_at = time.monotonic()
         result = (message or {}).get("result", {})
         if result.get("isError"):
-            raise RuntimeError(self._content_text(result) or f"LinkedIn MCP tool {name} failed")
+            text = self._content_text(result) or f"LinkedIn MCP tool {name} failed"
+            if is_session_error(text):
+                raise LinkedInMCPSessionError(session_error_message(text))
+            raise RuntimeError(text)
         text = self._content_text(result)
         if not text:
             return {}

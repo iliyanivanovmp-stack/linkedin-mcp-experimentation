@@ -8,6 +8,7 @@ import csv
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,11 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
 from lead_sheet import append_leads  # noqa: E402
-from linkedin_mcp_client import LinkedInMCPClient, LinkedInMCPExtractor  # noqa: E402
+from linkedin_mcp_client import (  # noqa: E402
+    LinkedInMCPClient,
+    LinkedInMCPExtractor,
+    LinkedInMCPSessionError,
+)
 
 DEFAULT_CONFIG = ROOT / "sourcing_config.json"
 DEFAULT_OUTPUT = ROOT / "exports" / "pipeline_engine_hiring_opportunities.csv"
@@ -685,13 +690,17 @@ def main() -> None:
     config["max_opportunities_per_run"] = effective_limit
     sheet_job_ids = google_existing_job_ids(system_config)
     skip_job_ids = set() if args.job_ids is not None else (seen | sheet_job_ids)
-    result = (
-        asyncio.run(
-            collect(config, args.job_ids, skip_job_ids, company_keys_added_today)
+    try:
+        result = (
+            asyncio.run(
+                collect(config, args.job_ids, skip_job_ids, company_keys_added_today)
+            )
+            if effective_limit > 0
+            else {"searches": [], "jobs_inspected": 0, "opportunities": []}
         )
-        if effective_limit > 0
-        else {"searches": [], "jobs_inspected": 0, "opportunities": []}
-    )
+    except LinkedInMCPSessionError as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(2) from None
     detected_at = datetime.now(timezone.utc).isoformat()
     rows = []
     lead_rows = []
