@@ -6,6 +6,8 @@ from pathlib import Path
 from collect_hiring_signals import (
     classify_job,
     compensation_details,
+    guest_job_details,
+    guest_job_search,
 )
 from extract_contacts import (
     MemorySheet,
@@ -75,6 +77,51 @@ def test_compensation_ignores_pipeline_kpis():
     assert details["compensation_max"] == 100_000
     assert details["compensation_period"] == "year"
     assert "sourced pipeline" not in details["compensation_text"]
+
+
+def test_guest_job_search_extracts_unique_job_ids(monkeypatch):
+    def fake_request(url):
+        assert "jobs-guest/jobs/api/seeMoreJobPostings/search" in url
+        return (
+            '<li data-entity-urn="urn:li:jobPosting:123"></li>'
+            '<a href="https://www.linkedin.com/jobs/view/456"></a>'
+            '<a href="https://www.linkedin.com/jobs/view/123"></a>'
+        )
+
+    monkeypatch.setattr("collect_hiring_signals.linkedin_guest_request", fake_request)
+
+    result = guest_job_search(
+        "revenue operations",
+        location="United States",
+        max_pages=1,
+        date_posted="past_24_hours",
+        sort_by="date",
+    )
+
+    assert result["job_ids"] == ["123", "456"]
+    assert "f_TPR=r86400" in result["url"]
+    assert "sortBy=DD" in result["url"]
+
+
+def test_guest_job_details_normalizes_company_then_title(monkeypatch):
+    def fake_request(url):
+        assert url.endswith("/123")
+        return (
+            "<h1>Revenue Operations Manager</h1>"
+            "<h4>Acme</h4>"
+            '<a href="https://www.linkedin.com/company/acme?trk=x">Acme</a>'
+            "<div>Own outbound pipeline, CRM, and sales pipeline reporting.</div>"
+        )
+
+    monkeypatch.setattr("collect_hiring_signals.linkedin_guest_request", fake_request)
+
+    details = guest_job_details("123")
+    text = details["sections"]["job_posting"]
+
+    assert text.splitlines()[:2] == ["Acme", "Revenue Operations Manager"]
+    assert details["references"]["job_posting"] == [
+        {"kind": "company", "url": "https://www.linkedin.com/company/acme/"}
+    ]
 
 
 def test_staffing_company_and_commission_only_role_are_rejected():

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import html
 import json
 import os
 import re
@@ -12,7 +13,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlencode, urlparse
+import urllib.request
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent
@@ -28,6 +30,10 @@ DEFAULT_OUTPUT = ROOT / "exports" / "pipeline_engine_hiring_opportunities.csv"
 DEFAULT_STATE = ROOT / "state" / "seen_job_ids.json"
 DEFAULT_LEAD_SHEET = ROOT / "exports" / "pipeline_leads.csv"
 DEFAULT_SYSTEM_CONFIG = ROOT / "config.json"
+LINKEDIN_GUEST_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
 
 FIELDS = [
     "signal_type",
@@ -92,6 +98,101 @@ def poster_reference(details: dict[str, Any]) -> str:
         match = re.search(r"(https://www\.linkedin\.com/in/[^/?#]+)", url)
         return f"{match.group(1)}/" if match else url
     return ""
+
+
+def html_to_text(value: str) -> str:
+    value = re.sub(r"(?is)<(script|style).*?</\1>", " ", value)
+    value = re.sub(r"<[^>]+>", "\n", value)
+    value = html.unescape(value)
+    return "\n".join(clean_lines(value))
+
+
+def linkedin_date_filter(value: str | None) -> str:
+    return {
+        "past_hour": "r3600",
+        "past_24_hours": "r86400",
+        "past_week": "r604800",
+        "past_month": "r2592000",
+    }.get(str(value or "").strip(), str(value or "").strip())
+
+
+def linkedin_sort_filter(value: str | None) -> str:
+    return {"date": "DD", "relevance": "R"}.get(
+        str(value or "").strip().casefold(),
+        str(value or "").strip(),
+    )
+
+
+def linkedin_guest_request(url: str) -> str:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": LINKEDIN_GUEST_USER_AGENT,
+        },
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8", "ignore")
+
+
+def guest_job_search(
+    keywords: str,
+    *,
+    location: str | None = None,
+    max_pages: int = 1,
+    date_posted: str | None = None,
+    sort_by: str | None = None,
+) -> dict[str, Any]:
+    job_ids: list[str] = []
+    seen: set[str] = set()
+    base_params = {
+        "keywords": keywords,
+        "start": "0",
+    }
+    if location:
+        base_params["location"] = location
+    if date_posted:
+        base_params["f_TPR"] = linkedin_date_filter(date_posted)
+    if sort_by:
+        base_params["sortBy"] = linkedin_sort_filter(sort_by)
+    last_url = ""
+    for page in range(max(1, max_pages)):
+        params = dict(base_params)
+        params["start"] = str(page * 25)
+        last_url = (
+            "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?"
+            + urlencode(params)
+        )
+        body = linkedin_guest_request(last_url)
+        matches = re.findall(
+            r'data-entity-urn="urn:li:jobPosting:(\d+)"|/jobs/view/(\d+)',
+            body,
+        )
+        for first, second in matches:
+            job_id = first or second
+            if job_id and job_id not in seen:
+                seen.add(job_id)
+                job_ids.append(job_id)
+    return {"url": last_url, "job_ids": job_ids, "source": "linkedin_guest"}
+
+
+def guest_job_details(job_id: str) -> dict[str, Any]:
+    url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{quote_plus(job_id)}"
+    body = linkedin_guest_request(url)
+    text = html_to_text(body)
+    lines = clean_lines(text)
+    if len(lines) >= 2:
+        text = "\n".join([lines[1], lines[0], *lines[2:]])
+    references = []
+    for company_url in dict.fromkeys(
+        re.findall(r"https://www\.linkedin\.com/company/[^?\"'<\s]+", body)
+    ):
+        references.append({"kind": "company", "url": normalize_linkedin_url(company_url)})
+    return {
+        "url": f"https://www.linkedin.com/jobs/view/{job_id}/",
+        "sections": {"job_posting": text},
+        "references": {"job_posting": references},
+    }
 
 
 async def poster_reference_from_loaded_page(page: Any) -> str:
@@ -560,17 +661,30 @@ async def collect(
             if query_job_ids is not None:
                 search = {"job_ids": query_job_ids, "url": "known-job-ids"}
             else:
-                search = await extractor.search_jobs(
-                    query,
-                    location=config.get("location"),
-                    max_pages=int(config.get("max_pages", 1)),
-                    date_posted=config.get("date_posted"),
-                    job_type=config.get("job_type"),
-                    experience_level=config.get("experience_level"),
-                    work_type=config.get("work_type"),
-                    easy_apply=bool(config.get("easy_apply", False)),
-                    sort_by=config.get("sort_by", "date"),
-                )
+                try:
+                    search = await extractor.search_jobs(
+                        query,
+                        location=config.get("location"),
+                        max_pages=int(config.get("max_pages", 1)),
+                        date_posted=config.get("date_posted"),
+                        job_type=config.get("job_type"),
+                        experience_level=config.get("experience_level"),
+                        work_type=config.get("work_type"),
+                        easy_apply=bool(config.get("easy_apply", False)),
+                        sort_by=config.get("sort_by", "date"),
+                    )
+                except LinkedInMCPSessionError:
+                    raise
+                except Exception:
+                    search = {"job_ids": [], "url": "", "source": "linkedin_mcp_failed"}
+                if not search.get("job_ids") and config.get("guest_search_fallback", True):
+                    search = guest_job_search(
+                        query,
+                        location=config.get("location"),
+                        max_pages=int(config.get("max_pages", 1)),
+                        date_posted=config.get("date_posted"),
+                        sort_by=config.get("sort_by", "date"),
+                    )
             searches.append({
                 "query": query,
                 "url": search.get("url", ""),
@@ -591,7 +705,13 @@ async def collect(
                         timeout=60,
                     )
                 except Exception:
-                    continue
+                    if config.get("guest_detail_fallback", True):
+                        try:
+                            details = guest_job_details(job_id)
+                        except Exception:
+                            continue
+                    else:
+                        continue
                 text = details.get("sections", {}).get("job_posting", "")
                 classification = classify_job(text, config)
                 if not classification:
