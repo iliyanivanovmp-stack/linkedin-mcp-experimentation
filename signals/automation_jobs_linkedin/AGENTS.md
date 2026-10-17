@@ -220,3 +220,10 @@ print(len(ws.get_all_values()), 'rows')"
 - Do not add a `schedule=` to `modal_app.py` without removing another scheduled function first (free plan caps at 5)
 - Do not store raw credentials JSON in shell variables — always use base64
 - Do not import from sibling signals or the parent `linkedin-mcp-experimentation` repo
+
+## LinkedIn MCP operating rules (moved from the vault root, 2026-10-17)
+
+- Call only the single centralized [[Modal]] [[LinkedIn MCP]] service backed by `linkedin-mcp-vol`. Never embed your own LinkedIn MCP, Chromium, cookie bundle, or browser-session volume. Only the centralized service receives LinkedIn MCP reauthentication uploads.
+- The centralized HTTP endpoint requires the bearer credential in the isolated `linkedin-mcp-auth` Modal secret. Mount that secret and send `LINKEDIN_MCP_TOKEN`. Never place the token in code, the vault, logs, or caller-specific config.
+- Never copy a LinkedIn MCP login into several Modal volumes. A copied profile creates a separate browser runtime, not a shared session, and cross-runtime use can destabilize authentication. Update only the runtime that owns the session.
+- When this volume is intentionally updated, preserve `automation_jobs_seen.json`.

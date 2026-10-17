@@ -77,3 +77,12 @@ When changing contact selection, update both `config.json` and the title-matcher
 tests. When changing Lemlist variables, update `feeder_config.json` and verify
 the exact Sheet column names. Sequences and senders remain controlled in
 Lemlist and are outside this codebase.
+
+## LinkedIn MCP operating rules (moved from the vault root, 2026-10-17)
+
+- Call only the single centralized [[Modal]] [[LinkedIn MCP]] service backed by `linkedin-mcp-vol`. Never embed your own LinkedIn MCP, Chromium, cookie bundle, or browser-session volume. Only the centralized service receives LinkedIn MCP reauthentication uploads.
+- The centralized HTTP endpoint requires the bearer credential in the isolated `linkedin-mcp-auth` Modal secret. Mount that secret and send `LINKEDIN_MCP_TOKEN`. Never place the token in code, the vault, logs, or caller-specific config.
+- Never copy a LinkedIn MCP login into several Modal volumes. A copied profile creates a separate browser runtime, not a shared session, and cross-runtime use can destabilize authentication. Update only the runtime that owns the session.
+- Use the trusted LinkedIn MCP collector and its authenticated session. Never replace it with LinkedIn's undocumented guest web endpoints, and never describe those endpoints as a public API.
+- A dry run proves only no-write execution. It is not evidence that the full Google Sheets, contact context, custom-variable, and Lemlist production path works.
+- The terminal success or error Slack notification is sent directly from Modal, because Modal owns the completed pipeline result. n8n is the scheduler and completion recorder, not the notification sender.
